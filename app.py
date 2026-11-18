@@ -63,7 +63,7 @@ menu = ["📊 لوحة التحكم", "📁 استيراد الطالبات", "�
 choice = st.sidebar.radio("التنقل السريع", menu)
 
 st.sidebar.markdown("---")
-st.sidebar.info("⭐ **نظام السلوك المتميز**\nنسخة الأعمال الاحترافية v3.0")
+st.sidebar.info("⭐ **نظام السلوك المتميز**\nنسخة الأعمال الاحترافية v3.1")
 
 # --- 1. لوحة التحكم ---
 if choice == "📊 لوحة التحكم":
@@ -181,7 +181,6 @@ elif choice == "📋 بطاقات الطالبات والتقارير":
     st.markdown("كل طالبة لها بطاقة خاصة بها تجمع إجمالي درجاتها وجميع شواهدها وأعمالها المرئية.")
     st.markdown("---")
     
-    # جلب أسماء الطالبات اللاتي لديهن سجلات أو جميع الطالبات
     c.execute("SELECT DISTINCT student_name, classroom FROM records")
     active_students = c.fetchall()
     
@@ -189,16 +188,13 @@ elif choice == "📋 بطاقات الطالبات والتقارير":
         st.info("𭕀 لا توجد شواهد مرصودة للطالبات حتى الآن.")
     else:
         for s_name, s_class in active_students:
-            # حساب مجموع درجات الطالبة
             c.execute("SELECT SUM(points) FROM records WHERE student_name=?", (s_name,))
             total_p = c.fetchone()[0]
             total_p = total_p if total_p else 0
             
-            # جلب كافة شواهد هذه الطالبة
             c.execute("SELECT id, behavior, points, date, observer_name, evidence_file FROM records WHERE student_name=?", (s_name,))
             student_records = c.fetchall()
             
-            # بطاقة الطالبة التراكمية
             with st.expander(f"🎓 الطالبة: {s_name} | الفصل: {s_class} | ⭐ المجموع التراكمي: {total_p} / 20 درجة"):
                 st.markdown(f"### سجل أعمال ومتميزات الطالبة: {s_name}")
                 st.progress(min(total_p / 20.0, 1.0))
@@ -206,7 +202,7 @@ elif choice == "📋 بطاقات الطالبات والتقارير":
                 
                 for idx, rec in enumerate(student_records, 1):
                     rec_id, s_beh, s_pts, s_date, s_observer, s_file = rec
-                    st.markdown(#### رصد رقم ({idx}) - {s_beh})
+                    st.markdown(f"#### رصد رقم ({idx}) - {s_beh}")
                     st.write(f"⭐ **الدرجة الممنوحة:** {s_pts} درجات | 📅 **التاريخ:** {s_date} | 👤 **الراصد:** {s_observer}")
                     
                     if s_file and os.path.exists(s_file):
