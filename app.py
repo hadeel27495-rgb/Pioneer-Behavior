@@ -108,7 +108,7 @@ elif choice == "رصد الشواهد والدرجات":
         
         st.info(f"📌 مجموع الدرجات التراكمي الحالي للطالبة: **{current_total} / 20** درجة")
         
-        # اختيار بند السلوك المعتمد من القائمة المنسدلة
+        # اختيار بند السلوك المعتمد
         selected_behavior = st.selectbox("اختر بند السلوك المتميز", list(BEHAVIOR_RULES.keys()))
         auto_points = BEHAVIOR_RULES[selected_behavior]
         
@@ -116,7 +116,6 @@ elif choice == "رصد الشواهد والدرجات":
         
         date_str = st.date_input("تاريخ الرصد")
         
-        # خانة رفع الشاهد المرئي (صورة، فيديو، مستند)
         evidence = st.file_uploader("إرفاق شاهد مرئي (صورة، فيديو، أو ملف PDF)", type=["png", "jpg", "jpeg", "mp4", "pdf", "mov"])
         
         if st.button("حفظ الرصد والشاهد المرئي"):
@@ -165,6 +164,13 @@ elif choice == "عرض السجلات والتقارير والشواهد الم
                             )
                 else:
                     st.info("لا يوجد شاهد مرئي مرفق مع هذا الرصد.")
+                
+                # زر حذف هذا السجل المحدد
+                if st.button(f"🗑️ حذف هذا السجل", key=f"del_{rec_id}"):
+                    c.execute("DELETE FROM records WHERE id=?", (rec_id,))
+                    conn.commit()
+                    st.success("تم حذف السجل بنجاح! قم بتحديث الصفحة لتحديث القائمة.")
+                    st.rerun()
         
         st.markdown("---")
         df_records = pd.DataFrame(records, columns=["ID", "اسم الطالبة", "الفصل", "بند السلوك", "الدرجات", "التاريخ", "ملف الشاهد"])
@@ -173,7 +179,7 @@ elif choice == "عرض السجلات والتقارير والشواهد الم
             label="📥 تحميل جدول التقارير كملف Excel / CSV",
             data=csv,
             file_name='behavior_report.csv',
-            mime='text/css' if False else 'text/csv',
+            mime='text/csv',
         )
     else:
         st.info("لا توجد سجلات مرصودة حتى الآن.")
