@@ -57,14 +57,14 @@ BEHAVIOR_RULES = {
     "أخرى (بناءً على توصية لجنة التوجيه الطلابي).": 6
 }
 
-# القائمة الجانبية (مع تعديل اسم تبويب الرصد)
+# القائمة الجانبية
 st.sidebar.markdown("### 🇸🇦 وزارة التعليم")
 st.sidebar.markdown("### 🎓 إدارة النظام")
 menu = ["📊 لوحة التحكم", "📁 استيراد الطالبات", "📝 رصد السلوك والشواهد", "📋 بطاقات الطالبات والتقارير"]
 choice = st.sidebar.radio("التنقل السريع", menu)
 
 st.sidebar.markdown("---")
-st.sidebar.info("⭐ **نظام السلوك المتميز**\nنسخة الأعمال الاحترافية v3.4")
+st.sidebar.info("⭐ **نظام السلوك المتميز**\nنسخة الأعمال الاحترافية v3.5")
 
 # --- 1. لوحة التحكم ---
 if choice == "📊 لوحة التحكم":
@@ -180,14 +180,22 @@ elif choice == "📝 رصد السلوك والشواهد":
 # --- 4. بطاقات الطالبات والتقارير ---
 elif choice == "📋 بطاقات الطالبات والتقارير":
     st.title("📋 بطاقات الطالبات والأعمال التراكمية (من 20 درجة)")
-    st.markdown("كل طالبة لها بطاقة خاصة بها تجمع إجمالي درجاتها وجميع شواهدها وأعمالها المرئية.")
+    st.markdown("ابحث عن اسم الطالبة لاستعراض بطاقاتها، شواهدها، ومجموع درجاتها.")
     st.markdown("---")
     
-    c.execute("SELECT DISTINCT student_name, classroom FROM records")
+    # خانة البحث الفوري عن الطالبة
+    search_query = st.text_input("🔍 ابحث عن اسم الطالبة...", "").strip()
+    
+    # جلب الطالبات اللاتي لديهن سجلات
+    if search_query:
+        c.execute("SELECT DISTINCT student_name, classroom FROM records WHERE student_name LIKE ?", ('%' + search_query + '%',))
+    else:
+        c.execute("SELECT DISTINCT student_name, classroom FROM records")
+        
     active_students = c.fetchall()
     
     if not active_students:
-        st.info("𭕀 لا توجد شواهد مرصودة للطالبات حتى الآن.")
+        st.info("𭕀 لا توجد نتائج مطابقة للبحث أو لا توجد شواهد مرصودة.")
     else:
         for s_name, s_class in active_students:
             c.execute("SELECT SUM(points) FROM records WHERE student_name=?", (s_name,))
@@ -233,7 +241,6 @@ elif choice == "📋 بطاقات الطالبات والتقارير":
         st.markdown("---")
         st.markdown("### 📥 تصدير التقارير الرسمية")
         
-        # تجميع درجات كل طالبة في جدول واحد (بدون تكرار اسم الطالبة، مع جمع درجاتها النهائية من 20)
         c.execute("SELECT student_name, classroom, SUM(points) FROM records GROUP BY student_name, classroom")
         summary_data = c.fetchall()
         
