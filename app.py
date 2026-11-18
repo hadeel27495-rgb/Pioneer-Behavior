@@ -57,14 +57,14 @@ BEHAVIOR_RULES = {
     "أخرى (بناءً على توصية لجنة التوجيه الطلابي).": 6
 }
 
-# القائمة الجانبية مع شعار المملكة الرسمي المضمون
+# القائمة الجانبية (مع تعديل اسم تبويب الرصد)
 st.sidebar.markdown("### 🇸🇦 وزارة التعليم")
 st.sidebar.markdown("### 🎓 إدارة النظام")
-menu = ["📊 لوحة التحكم", "📁 استيراد الطالبات", "📝 رصد الشواهد", "📋 بطاقات الطالبات والتقارير"]
+menu = ["📊 لوحة التحكم", "📁 استيراد الطالبات", "📝 رصد السلوك والشواهد", "📋 بطاقات الطالبات والتقارير"]
 choice = st.sidebar.radio("التنقل السريع", menu)
 
 st.sidebar.markdown("---")
-st.sidebar.info("⭐ **نظام السلوك المتميز**\nنسخة الأعمال الاحترافية v3.3")
+st.sidebar.info("⭐ **نظام السلوك المتميز**\nنسخة الأعمال الاحترافية v3.4")
 
 # --- 1. لوحة التحكم ---
 if choice == "📊 لوحة التحكم":
@@ -83,7 +83,6 @@ if choice == "📊 لوحة التحكم":
     res_pts = c.fetchone()[0]
     total_points = res_pts if res_pts else 0
     
-    # بطاقات الإحصائيات متجاورة وأفقية بشكل جميل
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric(label="👥 إجمالي الطالبات", value=total_students)
@@ -120,9 +119,9 @@ elif choice == "📁 استيراد الطالبات":
         except Exception as e:
             st.error(f"حدث خطأ أثناء قراءة الملف: {e}")
 
-# --- 3. رصد الشواهد والدرجات ---
-elif choice == "📝 رصد الشواهد":
-    st.title("📝 رصد الشواهد والسلوك المتميز")
+# --- 3. رصد السلوك والشواهد ---
+elif choice == "📝 رصد السلوك والشواهد":
+    st.title("📝 رصد السلوك والشواهد المتميزة")
     st.markdown("---")
     
     c.execute("SELECT DISTINCT name, classroom FROM students")
@@ -232,13 +231,19 @@ elif choice == "📋 بطاقات الطالبات والتقارير":
                     st.markdown("---")
         
         st.markdown("---")
-        c.execute("SELECT student_name, classroom, behavior, points, date, observer_name FROM records")
-        all_data = c.fetchall()
-        df_records = pd.DataFrame(all_data, columns=["اسم الطالبة", "الفصل", "بند السلوك", "الدرجات", "التاريخ", "الراصد"])
-        csv = df_records.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(
-            label="📥 تحميل تقارير النظام كاملة كملف Excel / CSV",
-            data=csv,
-            file_name='behavior_cards_report.csv',
-            mime='text/csv',
-        )
+        st.markdown("### 📥 تصدير التقارير الرسمية")
+        
+        # تجميع درجات كل طالبة في جدول واحد (بدون تكرار اسم الطالبة، مع جمع درجاتها النهائية من 20)
+        c.execute("SELECT student_name, classroom, SUM(points) FROM records GROUP BY student_name, classroom")
+        summary_data = c.fetchall()
+        
+        if summary_data:
+            df_summary = pd.DataFrame(summary_data, columns=["اسم الطالبة", "الفصل", "المجموع النهائي (من 20)"])
+            csv_summary = df_summary.to_csv(index=False).encode('utf-8-sig')
+            
+            st.download_button(
+                label="📥 تحميل تقارير درجات الطالبات الإجمالية (Excel / CSV)",
+                data=csv_summary,
+                file_name='behavior_summary_report.csv',
+                mime='text/csv',
+            )
