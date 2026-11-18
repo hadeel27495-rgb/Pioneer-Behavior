@@ -57,17 +57,25 @@ BEHAVIOR_RULES = {
     "أخرى (بناءً على توصية لجنة التوجيه الطلابي).": 6
 }
 
-# القائمة الجانبية
+# --- الشعار والقائمة الجانبية في الـ Sidebar ---
+st.sidebar.image("https://upload.wikimedia.org/wikipedia/ar/thumb/8/8b/Logo_of_Ministry_of_Education_%28Saudi_Arabia%29.svg/512px-Logo_of_Ministry_of_Education_%28Saudi_Arabia%29.svg.png", width=120)
 st.sidebar.markdown("### 🎓 إدارة النظام")
 menu = ["📊 لوحة التحكم", "📁 استيراد الطالبات", "📝 رصد الشواهد", "📋 بطاقات الطالبات والتقارير"]
 choice = st.sidebar.radio("التنقل السريع", menu)
 
 st.sidebar.markdown("---")
-st.sidebar.info("⭐ **نظام السلوك المتميز**\nنسخة الأعمال الاحترافية v3.1")
+st.sidebar.info("⭐ **نظام السلوك المتميز**\nنسخة الأعمال الاحترافية v3.2")
 
 # --- 1. لوحة التحكم ---
 if choice == "📊 لوحة التحكم":
-    st.title("🌟 لوحة التحكم الرئيسية")
+    # عرض شعار وزارة التعليم في رأس الصفحة بشكل رسمي
+    col_logo, col_title = st.columns([1, 4])
+    with col_logo:
+        st.image("https://upload.wikimedia.org/wikipedia/ar/thumb/8/8b/Logo_of_Ministry_of_Education_%28Saudi_Arabia%29.svg/512px-Logo_of_Ministry_of_Education_%28Saudi_Arabia%29.svg.png", width=90)
+    with col_title:
+        st.title("🌟 لوحة التحكم الرئيسية")
+        st.markdown("نظام توثيق ومتابعة السلوك المتميز والمعزز للانضباط المدرسي.")
+    
     st.markdown("---")
     
     c.execute("SELECT COUNT(*) FROM students")
@@ -80,9 +88,10 @@ if choice == "📊 لوحة التحكم":
     res_pts = c.fetchone()[0]
     total_points = res_pts if res_pts else 0
     
+    # بطاقات الإحصائيات مقسمة بشكل أفقي متجاور (جميل ومنتظم على الشاشة)
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric(label="👥 إجمالي الطالبات", value=total_students)
+        st.metric(label="👥 إجمالي الطالبات المسجلات", value=total_students)
     with col2:
         st.metric(label="🏆 إجمالي الشواهد المرصودة", value=total_records)
     with col3:
@@ -134,7 +143,6 @@ elif choice == "📝 رصد الشواهد":
         student_name = selected_student[0]
         classroom = selected_student[1]
         
-        # فحص مجموع الدرجات التراكمي للطالبة (من 20)
         c.execute("SELECT SUM(points) FROM records WHERE student_name=?", (student_name,))
         res = c.fetchone()[0]
         current_total = res if res else 0
