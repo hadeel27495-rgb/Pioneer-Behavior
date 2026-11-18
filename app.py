@@ -1,8 +1,13 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import os
 
 st.set_page_config(page_title="السلوك المتميز", page_icon="⭐", layout="wide")
+
+# مجلد لحفظ الشواهد المرفوعة (صور، فيديوهات، ملفات)
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # إعداد قاعدة البيانات
 conn = sqlite3.connect('behavior_system.db', check_same_thread=False)
@@ -23,7 +28,8 @@ c.execute('''
         classroom TEXT,
         behavior TEXT,
         points INTEGER,
-        date TEXT
+        date TEXT,
+        evidence_file TEXT
     )
 ''')
 conn.commit()
@@ -31,7 +37,7 @@ conn.commit()
 st.title("⭐ نظام متابعة وتوثيق السلوك المتميز")
 st.markdown("---")
 
-menu = ["استيراد الطالبات (Excel)", "رصد الشواهد والدرجات", "عرض السجلات والتقارير"]
+menu = ["استيراد الطالبات (Excel)", "رصد الشواهد والدرجات والشواهد", "عرض السجلات والتقارير"]
 choice = st.sidebar.selectbox("القائمة الرئيسية", menu)
 
 if choice == "استيراد الطالبات (Excel)":
@@ -61,8 +67,8 @@ if choice == "استيراد الطالبات (Excel)":
         except Exception as e:
             st.error(f"حدث خطأ أثناء قراءة الملف: {e}")
 
-elif choice == "رصد الشواهد والدرجات":
-    st.subheader("📝 رصد الشواهد والدرجات")
+elif choice == "رصد الشواهد والدرجات والشواهد":
+    st.subheader("📝 رصد السلوك المتميز وإرفاق الشاهد (صور، فيديو، PDF)")
     
     c.execute("SELECT DISTINCT name, classroom FROM students")
     students = c.fetchall()
@@ -77,27 +83,55 @@ elif choice == "رصد الشواهد والدرجات":
         student_name = selected_student[0]
         classroom = selected_student[1]
         
+        # التحقق من مجموع الدرجات التراكمي للطالبة (الحد الأقصى 20)
+        c.execute("SELECT SUM(points) FROM records WHERE student_name=?", (student_name,))
+        res = c.fetchone()[0]
+        current_total = res if res else 0
+        
+        st.info(f"📌 مجموع الدرجات التراكمي الحالي للطالبة: **{current_total} / 20** درجة")
+        
         behavior_desc = st.text_area("وصف الشاهد أو السلوك المتميز")
-        points = st.number_input("الدرجات المضافة (الحد الأقصى التراكمي 20 درجة)", min_value=1, max_value=20, value=5)
+        
+        remaining_allowed = max(0, 20 - current_total)
+        points = st.number_input(
+            f"الدرجات المضافة (الحد الأقصى المتبقي: {remaining_allowed} درجة)",
+            min_value=1,
+            max_value=max(1, remaining_allowed),
+            value=min(5, max(1, remaining_allowed))
+        )
+        
         date_str = st.date_input("تاريخ الرصد")
         
-        if st.button("حفظ الرصد"):
-            if behavior_desc:
-                c.execute("INSERT INTO records (student_name, classroom, behavior, points, date) VALUES (?, ?, ?, ?, ?)",
-                          (student_name, classroom, behavior_desc, points, str(date_str)))
+        # خانة رفع الشواهد (صور، فيديو، مستندات)
+        evidence = st.file_uploader("إرفاق شاهد (صورة، فيديو، أو ملف PDF)", type=["png", "jpg", "jpeg", "mp4", "pdf", "mov"])
+        
+        if st.button("حفظ الرصد والشاهد"):
+            if current_total >= 20:
+                st.error("⚠️ لقد وصلت هذه الطالبة إلى الحد الأقصى التراكمي (20 درجة) ولا يمكن إضافة درجات أخرى.")
+            elif current_total + points > 20:
+                st.error(f"⚠️ عذراً، مجموع درجات الطالبة سيتجاوز الحد الأقصى (20 درجة). المتبقي لها فقط {remaining_allowed} درجات.")
+            elif behavior_desc:
+                file_path = ""
+                if evidence is not None:
+                    file_path = os.path.join(UPLOAD_DIR, evidence.name)
+                    with open(file_path, "wb") as f:
+                        f.write(evidence.getbuffer())
+                
+                c.execute("INSERT INTO records (student_name, classroom, behavior, points, date, evidence_file) VALUES (?, ?, ?, ?, ?, ?)",
+                          (student_name, classroom, behavior_desc, points, str(date_str), file_path))
                 conn.commit()
-                st.success(f"تم حفظ الشاهد للطالبة {student_name} بنجاح!")
+                st.success(f"تم حفظ الرصد والشاهد للطالبة {student_name} بنجاح!")
             else:
                 st.warning("الرجاء كتابة وصف الشاهد.")
 
 elif choice == "عرض السجلات والتقارير":
     st.subheader("📊 سجلات الشواهد والتقارير")
     
-    c.execute("SELECT student_name, classroom, behavior, points, date FROM records")
+    c.execute("SELECT student_name, classroom, behavior, points, date, evidence_file FROM records")
     records = c.fetchall()
     
     if records:
-        df_records = pd.DataFrame(records, columns=["اسم الطالبة", "الفصل", "وصف الشاهد", "الدرجات", "التاريخ"])
+        df_records = pd.DataFrame(records, columns=["اسم الطالبة", "الفصل", "وصف الشاهد", "الدرجات", "التاريخ", "ملف الشاهد"])
         st.dataframe(df_records, use_container_width=True)
         
         csv = df_records.to_csv(index=False).encode('utf-8-sig')
