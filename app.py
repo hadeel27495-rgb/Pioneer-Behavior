@@ -3,38 +3,11 @@ import pandas as pd
 import sqlite3
 import os
 
-# إعداد صفحة التطبيق بتنسيق عصري واسع
 st.set_page_config(
     page_title="نظام السلوك المتميز العصري",
     page_icon="⭐",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
-
-# تنسيق CSS مخصص لإعطاء مظهر عصري فاخر (Modern UI)
-st.markdown("""
-    <style>
-    .main {
-        background-color: #f8fafc;
-    }
-    .stApp {
-        font-family: 'Tajawal', sans-serif, -apple-system;
-    }
-    .metric-card {
-        background: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        border: 1px solid #e2e8f0;
-        text-align: center;
-    }
-    .stButton>button {
-        border-radius: 8px;
-        font-weight: bold;
-        transition: all 0.3s ease;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -84,18 +57,17 @@ BEHAVIOR_RULES = {
     "أخرى (بناءً على توصية لجنة التوجيه الطلابي).": 6
 }
 
-# --- القائمة الجانبية العصرية ---
+# القائمة الجانبية
 st.sidebar.markdown("### 🎓 إدارة النظام")
-menu = ["📊 لوحة التحكم", "📁 استيراد الطالبات", "📝 رصد الشواهد", "📋 السجلات والتقارير"]
+menu = ["📊 لوحة التحكم", "📁 استيراد الطالبات", "📝 رصد الشواهد", "📋 بطاقات الطالبات والتقارير"]
 choice = st.sidebar.radio("التنقل السريع", menu)
 
 st.sidebar.markdown("---")
-st.sidebar.info("⭐ **نظام السلوك المتميز**\nنسخة الأعمال الاحترافية v2.0")
+st.sidebar.info("⭐ **نظام السلوك المتميز**\nنسخة الأعمال الاحترافية v3.0")
 
-# --- 1. لوحة التحكم والإحصائيات ---
+# --- 1. لوحة التحكم ---
 if choice == "📊 لوحة التحكم":
     st.title("🌟 لوحة التحكم الرئيسية")
-    st.markdown("مرحباً بك في نظام توثيق ومتابعة السلوك المتميز للبطولات والتمبز المدرسي.")
     st.markdown("---")
     
     c.execute("SELECT COUNT(*) FROM students")
@@ -110,19 +82,15 @@ if choice == "📊 لوحة التحكم":
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric(label="👥 إجمالي الطالبات المسجلات", value=total_students)
+        st.metric(label="👥 إجمالي الطالبات", value=total_students)
     with col2:
-        st.metric(label="🏆 إجمالي الشواهد والمرصودات", value=total_records)
+        st.metric(label="🏆 إجمالي الشواهد المرصودة", value=total_records)
     with col3:
         st.metric(label="⭐ مجموع الدرجات الممنوحة", value=total_points)
-        
-    st.markdown("---")
-    st.success("✨ النظام جاهز تماماً للاستخدام، يمكنك الانتقال إلى قسم 'رصد الشواهد' أو 'استيراد الطالبات' عبر القائمة الجانبية.")
 
 # --- 2. استيراد الطالبات ---
 elif choice == "📁 استيراد الطالبات":
     st.title("📁 استيراد بيانات الطالبات من ملف Excel")
-    st.markdown("قم برفع ملف الإكسل المعتمد ليتم تحديث قاعدة بيانات الطالبات فوراً.")
     st.markdown("---")
     
     uploaded_file = st.file_uploader("اختر ملف الإكسل (.xlsx)", type=["xlsx"])
@@ -151,14 +119,13 @@ elif choice == "📁 استيراد الطالبات":
 # --- 3. رصد الشواهد والدرجات ---
 elif choice == "📝 رصد الشواهد":
     st.title("📝 رصد الشواهد والسلوك المتميز")
-    st.markdown("اختر الطالبة، حدد بند السلوك، ارفع الشاهد المرئي، وسجّل اسم المسؤول.")
     st.markdown("---")
     
     c.execute("SELECT DISTINCT name, classroom FROM students")
     students = c.fetchall()
     
     if not students:
-        st.warning("⚠️ لا توجد طالبات مسجلات. يرجى استيراد القائمة من تبويب 'استيراد الطالبات' أولاً.")
+        st.warning("⚠️ لا توجد طالبات مسجلات. يرجى استيراد القائمة أولاً.")
     else:
         student_dict = {f"{s[0]} ({s[1]})": s for s in students}
         selected_student_str = st.selectbox("🎯 اختر الطالبة المستهدفة", list(student_dict.keys()))
@@ -167,13 +134,12 @@ elif choice == "📝 رصد الشواهد":
         student_name = selected_student[0]
         classroom = selected_student[1]
         
-        # فحص مجموع الدرجات التراكمي (الحد الأقصى 20)
+        # فحص مجموع الدرجات التراكمي للطالبة (من 20)
         c.execute("SELECT SUM(points) FROM records WHERE student_name=?", (student_name,))
         res = c.fetchone()[0]
         current_total = res if res else 0
         
-        # شريط تقدم بصري للدرجات التراكمية
-        st.markdown(f"**مجموع الدرجات التراكمي للطالبة: {current_total} / 20 درجة**")
+        st.markdown(f"**مجموع الدرجات التراكمي الحالي للطالبة: {current_total} / 20 درجة**")
         st.progress(min(current_total / 20.0, 1.0))
         
         selected_behavior = st.selectbox("📌 اختر بند السلوك المتميز", list(BEHAVIOR_RULES.keys()))
@@ -192,11 +158,11 @@ elif choice == "📝 رصد الشواهد":
         st.markdown("")
         if st.button("💾 حفظ الاعتماد والرصد المرئي", use_container_width=True):
             if not observer_name.strip():
-                st.warning("⚠️ الرجاء إدخال اسم الراصد (المعلم / الوكيل / الإداري).")
+                st.warning("⚠️ الرجاء إدخال اسم الراصد.")
             elif current_total >= 20:
-                st.error("⚠️ لقد وصلت هذه الطالبة إلى الحد الأقصى التراكمي (20 درجة) ولا يمكن إضافة درجات أخرى.")
+                st.error("⚠️ لقد وصلت هذه الطالبة إلى الحد الأقصى التراكمي (20 درجة).")
             elif current_total + auto_points > 20:
-                st.error(f"⚠️ عذراً، إضافة {auto_points} درجات سيتجاوز الحد الأقصى التراكمي (20 درجة). المتبقي للطالبة هو {20 - current_total} درجات فقط.")
+                st.error(f"⚠️ عذراً، الإضافة ستتجاوز 20 درجة. المتبقي للطالبة {20 - current_total} درجات فقط.")
             else:
                 file_path = ""
                 if evidence is not None:
@@ -207,64 +173,73 @@ elif choice == "📝 رصد الشواهد":
                 c.execute("INSERT INTO records (student_name, classroom, behavior, points, date, observer_name, evidence_file) VALUES (?, ?, ?, ?, ?, ?, ?)",
                           (student_name, classroom, selected_behavior, auto_points, str(date_str), observer_name, file_path))
                 conn.commit()
-                st.success(f"🎉 تم حفظ السلوك ورصد الشاهد المرئي للطالبة {student_name} بنجاح تام!")
+                st.success(f"🎉 تم حفظ السلوك للطالبة {student_name} بنجاح!")
 
-# --- 4. السجلات والتقارير ---
-elif choice == "📋 السجلات والتقارير":
-    st.title("📋 سجلات الطالبات والشواهد المرئية المعتمدة")
-    st.markdown("استعرض الشواهد، شاهد الصور والفيديوهات مباشرة، أو احصل على التقارير بصيغة إكسل.")
+# --- 4. بطاقات الطالبات والتقارير ---
+elif choice == "📋 بطاقات الطالبات والتقارير":
+    st.title("📋 بطاقات الطالبات والأعمال التراكمية (من 20 درجة)")
+    st.markdown("كل طالبة لها بطاقة خاصة بها تجمع إجمالي درجاتها وجميع شواهدها وأعمالها المرئية.")
     st.markdown("---")
     
-    c.execute("SELECT id, student_name, classroom, behavior, points, date, observer_name, evidence_file FROM records")
-    records = c.fetchall()
+    # جلب أسماء الطالبات اللاتي لديهن سجلات أو جميع الطالبات
+    c.execute("SELECT DISTINCT student_name, classroom FROM records")
+    active_students = c.fetchall()
     
-    if records:
-        for rec in records:
-            rec_id, s_name, s_class, s_beh, s_pts, s_date, s_observer, s_file = rec
-            observer_display = s_observer if s_observer else "غير محدد"
+    if not active_students:
+        st.info("𭕀 لا توجد شواهد مرصودة للطالبات حتى الآن.")
+    else:
+        for s_name, s_class in active_students:
+            # حساب مجموع درجات الطالبة
+            c.execute("SELECT SUM(points) FROM records WHERE student_name=?", (s_name,))
+            total_p = c.fetchone()[0]
+            total_p = total_p if total_p else 0
             
-            with st.expander(f"📌 الطالبة: {s_name} | الفصل: {s_class} | الدرجات: {s_pts}+ ⭐"):
-                col_info1, col_info2 = st.columns(2)
-                with col_info1:
-                    st.write(f"🔹 **بند السلوك:** {s_beh}")
-                    st.write(f"📅 **التاريخ:** {s_date}")
-                with col_info2:
-                    st.write(f"👤 **الراصد:** {observer_display}")
-                    st.write(f"⭐ **الدرجات الممنوحة:** {s_pts}")
+            # جلب كافة شواهد هذه الطالبة
+            c.execute("SELECT id, behavior, points, date, observer_name, evidence_file FROM records WHERE student_name=?", (s_name,))
+            student_records = c.fetchall()
+            
+            # بطاقة الطالبة التراكمية
+            with st.expander(f"🎓 الطالبة: {s_name} | الفصل: {s_class} | ⭐ المجموع التراكمي: {total_p} / 20 درجة"):
+                st.markdown(f"### سجل أعمال ومتميزات الطالبة: {s_name}")
+                st.progress(min(total_p / 20.0, 1.0))
+                st.markdown("---")
                 
-                if s_file and os.path.exists(s_file):
-                    st.markdown("---")
-                    st.write("📎 **معاينة الشاهد المرئي:**")
-                    if s_file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                        st.image(s_file, caption=s_name, use_container_width=True)
-                    elif s_file.lower().endswith(('.mp4', '.mov')):
-                        st.video(s_file)
+                for idx, rec in enumerate(student_records, 1):
+                    rec_id, s_beh, s_pts, s_date, s_observer, s_file = rec
+                    st.markdown(#### رصد رقم ({idx}) - {s_beh})
+                    st.write(f"⭐ **الدرجة الممنوحة:** {s_pts} درجات | 📅 **التاريخ:** {s_date} | 👤 **الراصد:** {s_observer}")
+                    
+                    if s_file and os.path.exists(s_file):
+                        if s_file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                            st.image(s_file, caption=s_name, use_container_width=True)
+                        elif s_file.lower().endswith(('.mp4', '.mov')):
+                            st.video(s_file)
+                        else:
+                            with open(s_file, "rb") as f:
+                                st.download_button(
+                                    label="📥 تحميل ملف الشاهد المرفق",
+                                    data=f,
+                                    file_name=os.path.basename(s_file),
+                                    key=f"dl_{rec_id}"
+                                )
                     else:
-                        with open(s_file, "rb") as f:
-                            st.download_button(
-                                label="📥 تحميل ملف الشاهد (PDF / مستند)",
-                                data=f,
-                                file_name=os.path.basename(s_file),
-                                key=f"dl_{rec_id}"
-                            )
-                else:
-                    st.info("لا يوجد شاهد مرئي مرفق مع هذا الرصد.")
-                
-                st.markdown("")
-                if st.button(f"🗑️ حذف هذا السجل نهائياً", key=f"del_{rec_id}"):
-                    c.execute("DELETE FROM records WHERE id=?", (rec_id,))
-                    conn.commit()
-                    st.success("تم حذف السجل بنجاح!")
-                    st.rerun()
+                        st.text("لا يوجد شاهد مرئي مرفق مع هذا البند.")
+                    
+                    if st.button(f"🗑️ حذف هذا البند للطالبة {s_name}", key=f"del_{rec_id}"):
+                        c.execute("DELETE FROM records WHERE id=?", (rec_id,))
+                        conn.commit()
+                        st.success("تم الحذف بنجاح!")
+                        st.rerun()
+                    st.markdown("---")
         
         st.markdown("---")
-        df_records = pd.DataFrame(records, columns=["ID", "اسم الطالبة", "الفصل", "بند السلوك", "الدرجات", "التاريخ", "الراصد", "ملف الشاهد"])
-        csv = df_records.drop(columns=["ID"]).to_csv(index=False).encode('utf-8-sig')
+        c.execute("SELECT student_name, classroom, behavior, points, date, observer_name FROM records")
+        all_data = c.fetchall()
+        df_records = pd.DataFrame(all_data, columns=["اسم الطالبة", "الفصل", "بند السلوك", "الدرجات", "التاريخ", "الراصد"])
+        csv = df_records.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="📥 تحميل تقارير النظام كاملة كملف Excel / CSV",
             data=csv,
-            file_name='behavior_professional_report.csv',
+            file_name='behavior_cards_report.csv',
             mime='text/csv',
         )
-    else:
-        st.info("𭕀 لا توجد سجلات مرصودة حتى الآن في النظام.")
