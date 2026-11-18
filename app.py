@@ -20,6 +20,7 @@ c.execute('''
     )
 ''')
 
+# تحديث الجدول ليشمل اسم الراصد
 c.execute('''
     CREATE TABLE IF NOT EXISTS records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,6 +29,7 @@ c.execute('''
         behavior TEXT,
         points INTEGER,
         date TEXT,
+        observer_name TEXT,
         evidence_file TEXT
     )
 ''')
@@ -108,7 +110,6 @@ elif choice == "رصد الشواهد والدرجات":
         
         st.info(f"📌 مجموع الدرجات التراكمي الحالي للطالبة: **{current_total} / 20** درجة")
         
-        # اختيار بند السلوك المعتمد
         selected_behavior = st.selectbox("اختر بند السلوك المتميز", list(BEHAVIOR_RULES.keys()))
         auto_points = BEHAVIOR_RULES[selected_behavior]
         
@@ -116,10 +117,15 @@ elif choice == "رصد الشواهد والدرجات":
         
         date_str = st.date_input("تاريخ الرصد")
         
+        # خانة اسم الراصد (المعلم / الوكيل / الإداري)
+        observer_name = st.text_input("اسم الراصد (المعلم / الوكيل / الإداري المسؤول)")
+        
         evidence = st.file_uploader("إرفاق شاهد مرئي (صورة، فيديو، أو ملف PDF)", type=["png", "jpg", "jpeg", "mp4", "pdf", "mov"])
         
         if st.button("حفظ الرصد والشاهد المرئي"):
-            if current_total >= 20:
+            if not observer_name.strip():
+                st.warning("الرجاء إدخال اسم الراصد (المعلم / الوكيل / الإداري).")
+            elif current_total >= 20:
                 st.error("⚠️ لقد وصلت هذه الطالبة إلى الحد الأقصى التراكمي (20 درجة) ولا يمكن إضافة درجات أخرى.")
             elif current_total + auto_points > 20:
                 st.error(f"⚠️ عذراً، إضافة {auto_points} درجات سيتجاوز الحد الأقصى التراكمي (20 درجة). المتبقي للطالبة هو {20 - current_total} درجات فقط.")
@@ -130,22 +136,24 @@ elif choice == "رصد الشواهد والدرجات":
                     with open(file_path, "wb") as f:
                         f.write(evidence.getbuffer())
                 
-                c.execute("INSERT INTO records (student_name, classroom, behavior, points, date, evidence_file) VALUES (?, ?, ?, ?, ?, ?)",
-                          (student_name, classroom, selected_behavior, auto_points, str(date_str), file_path))
+                c.execute("INSERT INTO records (student_name, classroom, behavior, points, date, observer_name, evidence_file) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                          (student_name, classroom, selected_behavior, auto_points, str(date_str), observer_name, file_path))
                 conn.commit()
                 st.success(f"تم حفظ السلوك ورصد الشاهد المرئي للطالبة {student_name} بنجاح!")
 
 elif choice == "عرض السجلات والتقارير والشواهد المرئية":
     st.subheader("📊 سجلات الطالبات وعرض الشواهد المرئية المباشرة")
     
-    c.execute("SELECT id, student_name, classroom, behavior, points, date, evidence_file FROM records")
+    c.execute("SELECT id, student_name, classroom, behavior, points, date, observer_name, evidence_file FROM records")
     records = c.fetchall()
     
     if records:
         for rec in records:
-            rec_id, s_name, s_class, s_beh, s_pts, s_date, s_file = rec
+            rec_id, s_name, s_class, s_beh, s_pts, s_date, s_observer, s_file = rec
+            observer_display = s_observer if s_observer else "غير محدد"
             with st.expander(f"الطالبة: {s_name} ({s_class}) - البند: {s_beh} ({s_pts} درجات)"):
                 st.write(f"📅 **تاريخ الرصد:** {s_date}")
+                st.write(f"👤 **الراصد / المسؤول:** {observer_display}")
                 st.write(f"⭐ **الدرجات:** {s_pts}")
                 
                 if s_file and os.path.exists(s_file):
@@ -165,15 +173,14 @@ elif choice == "عرض السجلات والتقارير والشواهد الم
                 else:
                     st.info("لا يوجد شاهد مرئي مرفق مع هذا الرصد.")
                 
-                # زر حذف هذا السجل المحدد
                 if st.button(f"🗑️ حذف هذا السجل", key=f"del_{rec_id}"):
                     c.execute("DELETE FROM records WHERE id=?", (rec_id,))
                     conn.commit()
-                    st.success("تم حذف السجل بنجاح! قم بتحديث الصفحة لتحديث القائمة.")
+                    st.success("تم حذف السجل بنجاح! قم بتحديث الصفحة.")
                     st.rerun()
         
         st.markdown("---")
-        df_records = pd.DataFrame(records, columns=["ID", "اسم الطالبة", "الفصل", "بند السلوك", "الدرجات", "التاريخ", "ملف الشاهد"])
+        df_records = pd.DataFrame(records, columns=["ID", "اسم الطالبة", "الفصل", "بند السلوك", "الدرجات", "التاريخ", "الراصد", "ملف الشاهد"])
         csv = df_records.drop(columns=["ID"]).to_csv(index=False).encode('utf-8-sig')
         st.download_button(
             label="📥 تحميل جدول التقارير كملف Excel / CSV",
