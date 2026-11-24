@@ -16,7 +16,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import ImageReader
 import arabic_reshaper
 from bidi.algorithm import get_display
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 st.set_page_config(
     page_title="السلوك المتميز",
@@ -457,6 +457,117 @@ def ar_txt(text: str) -> str:
     return get_display(reshaped)
 
 
+def find_arabic_ttf_font() -> str:
+    candidates = [
+        FONT_PATH,
+        "assets/fonts/Amiri-Regular.ttf",
+        "assets/fonts/NotoNaskhArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    for root_dir in [".", "assets", "/usr/share/fonts"]:
+        if os.path.isdir(root_dir):
+            for r, _, files in os.walk(root_dir):
+                for fn in sorted(files):
+                    if fn.lower().endswith(".ttf") and any(
+                        k in fn.lower() for k in ("arab", "cairo", "amiri", "naskh", "dejavu")
+                    ):
+                        return os.path.join(r, fn)
+    return ""
+
+
+def draw_ar_line(
+    c: canvas.Canvas,
+    text: str,
+    right_x_pt: float,
+    top_y_pt: float,
+    font_size_pt: int,
+    hex_color: str,
+    align: str = "right",
+    max_width_pt: float = 480.0,
+):
+    formatted = ar_txt(text)
+    ttf_path = find_arabic_ttf_font()
+
+    if ttf_path:
+        reg_name = "ArabicTTF_" + os.path.basename(ttf_path).replace(".", "_")
+        if reg_name not in pdfmetrics.getRegisteredFontNames():
+            try:
+                pdfmetrics.registerFont(TTFont(reg_name, ttf_path))
+            except Exception:
+                reg_name = ""
+        if reg_name:
+            c.setFillColor(colors.HexColor(hex_color))
+            c.setFont(reg_name, font_size_pt)
+            if align == "center":
+                c.drawCentredString(right_x_pt, top_y_pt, formatted)
+            else:
+                c.drawRightString(right_x_pt, top_y_pt, formatted)
+            return
+
+    # رسم النص العربي عبر PIL إذا لم يتوفر ملف TTF لـ ReportLab
+    scale = 3
+    img_w = int(max_width_pt * scale)
+    img_h = int((font_size_pt * 1.9) * scale)
+    pil_img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(pil_img)
+
+    pil_font = None
+    for f_cand in [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    ]:
+        if os.path.exists(f_cand):
+            try:
+                pil_font = ImageFont.truetype(f_cand, int(font_size_pt * scale))
+                break
+            except Exception:
+                pass
+    if pil_font is None:
+        pil_font = ImageFont.load_default()
+
+    rgb = tuple(int(hex_color.lstrip("#")[i : i + 2], 16) for i in (0, 2, 4)) + (255,)
+    bbox = draw.textbbox((0, 0), formatted, font=pil_font)
+    tw = bbox[2] - bbox[0]
+    th = bbox[3] - bbox[1]
+
+    if align == "center":
+        tx = (img_w - tw) // 2 - bbox[0]
+    else:
+        tx = img_w - tw - bbox[0] - (4 * scale)
+    ty = (img_h - th) // 2 - bbox[1]
+
+    draw.text((tx, ty), formatted, font=pil_font, fill=rgb)
+
+    out_buf = io.BytesIO()
+    pil_img.save(out_buf, format="PNG")
+    out_buf.seek(0)
+    reader = ImageReader(out_buf)
+
+    if align == "center":
+        c.drawImage(
+            reader,
+            right_x_pt - (max_width_pt / 2),
+            top_y_pt - (font_size_pt * 0.55),
+            width=max_width_pt,
+            height=font_size_pt * 1.9,
+            mask="auto",
+        )
+    else:
+        c.drawImage(
+            reader,
+            right_x_pt - max_width_pt,
+            top_y_pt - (font_size_pt * 0.55),
+            width=max_width_pt,
+            height=font_size_pt * 1.9,
+            mask="auto",
+        )
+
+
 def generate_student_pdf(
     student_name: str,
     classroom: str,
@@ -468,12 +579,6 @@ def generate_student_pdf(
     c = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
 
-    font_name = "Helvetica"
-    if os.path.exists(FONT_PATH):
-        font_name = "ArabicCairo"
-        if font_name not in pdfmetrics.getRegisteredFontNames():
-            pdfmetrics.registerFont(TTFont(font_name, FONT_PATH))
-
     header_h = 3.2 * cm
     c.setFillColor(colors.HexColor("#0f4c3a"))
     c.rect(0, height - header_h, width, header_h, fill=1, stroke=0)
@@ -482,49 +587,48 @@ def generate_student_pdf(
     c.setLineWidth(2)
     c.line(0, height - header_h, width, height - header_h)
 
-    c.setFillColor(colors.HexColor("#f3d882"))
-    c.setFont(font_name, 13)
-    c.drawRightString(width - 1.5 * cm, height - 1.1 * cm, ar_txt(MINISTRY_TITLE))
-
-    c.setFillColor(colors.white)
-    c.setFont(font_name, 11)
-    c.drawRightString(width - 1.5 * cm, height - 1.75 * cm, ar_txt(EDU_ADMIN_TITLE))
-
-    c.setFillColor(colors.HexColor("#f7e3a1"))
-    c.setFont(font_name, 12)
-    c.drawCentredString(
-        width / 2, height - 2.55 * cm, ar_txt(f"تقرير شواهد السلوك المتميز — {SCHOOL_NAME}")
+    draw_ar_line(c, MINISTRY_TITLE, width - 1.5 * cm, height - 1.05 * cm, 13, "#f3d882", "right")
+    draw_ar_line(c, EDU_ADMIN_TITLE, width - 1.5 * cm, height - 1.7 * cm, 11, "#ffffff", "right")
+    draw_ar_line(
+        c,
+        f"تقرير شواهد السلوك المتميز — {SCHOOL_NAME}",
+        width / 2,
+        height - 2.45 * cm,
+        12,
+        "#f7e3a1",
+        "center",
     )
 
-    y = height - header_h - 1.0 * cm
+    y = height - header_h - 0.9 * cm
     box_h = 2.6 * cm
     c.setFillColor(colors.HexColor("#fbfaf5"))
     c.setStrokeColor(colors.HexColor("#c59b27"))
     c.setLineWidth(1.2)
     c.roundRect(1.5 * cm, y - box_h, width - 3.0 * cm, box_h, 8, fill=1, stroke=1)
 
-    c.setFillColor(colors.HexColor("#132620"))
-    c.setFont(font_name, 12)
-    c.drawRightString(width - 2.0 * cm, y - 0.75 * cm, ar_txt(f"اسم الطالبة: {student_name}"))
-    c.drawRightString(
+    draw_ar_line(c, f"اسم الطالبة: {student_name}", width - 2.0 * cm, y - 0.7 * cm, 12, "#132620", "right")
+    draw_ar_line(
+        c,
+        f"الفصل: {classroom}   |   الواتساب: {whatsapp or 'غير مسجل'}",
         width - 2.0 * cm,
-        y - 1.45 * cm,
-        ar_txt(f"الفصل: {classroom}   |   الواتساب: {whatsapp or 'غير مسجل'}"),
+        y - 1.4 * cm,
+        11,
+        "#132620",
+        "right",
     )
-
-    c.setFillColor(colors.HexColor("#0f4c3a"))
-    c.setFont(font_name, 12)
-    c.drawRightString(
+    draw_ar_line(
+        c,
+        f"الدرجة التراكمية للسلوك المتميز: {min(int(total_points), MAX_POINTS)} / {MAX_POINTS}",
         width - 2.0 * cm,
-        y - 2.15 * cm,
-        ar_txt(f"الدرجة التراكمية للسلوك المتميز: {min(int(total_points), MAX_POINTS)} / {MAX_POINTS}"),
+        y - 2.1 * cm,
+        12,
+        "#0f4c3a",
+        "right",
     )
 
     y = y - box_h - 0.9 * cm
-    c.setFillColor(colors.HexColor("#0f4c3a"))
-    c.setFont(font_name, 12)
-    c.drawRightString(width - 1.5 * cm, y, ar_txt("سجل الشواهد والدرجات المرصودة:"))
-    y -= 0.6 * cm
+    draw_ar_line(c, "سجل الشواهد والدرجات المرصودة:", width - 1.5 * cm, y, 12, "#0f4c3a", "right")
+    y -= 0.65 * cm
 
     thumb_paths = []
     if s_recs is not None and not s_recs.empty:
@@ -537,19 +641,15 @@ def generate_student_pdf(
                 f"• {rec['behavior']}  (+{rec['points']} درجة) — "
                 f"التاريخ: {rec['date']} — الراصد: {rec['observer_name']}"
             )
-            c.setFillColor(colors.HexColor("#1e2d27"))
-            c.setFont(font_name, 10)
-            c.drawRightString(width - 1.5 * cm, y, ar_txt(line_txt))
-            y -= 0.55 * cm
+            draw_ar_line(c, line_txt, width - 1.5 * cm, y, 10, "#1e2d27", "right")
+            y -= 0.6 * cm
 
             ev_p = str(rec.get("evidence_file", "") or "").strip()
             if ev_p and os.path.exists(ev_p) and ev_p.lower().endswith((".png", ".jpg", ".jpeg")):
                 thumb_paths.append(ev_p)
     else:
-        c.setFillColor(colors.HexColor("#5d6f68"))
-        c.setFont(font_name, 10)
-        c.drawRightString(
-            width - 1.5 * cm, y, ar_txt("لا توجد شواهد مسجلة لهذه الطالبة حتى الآن.")
+        draw_ar_line(
+            c, "لا توجد شواهد مسجلة لهذه الطالبة حتى الآن.", width - 1.5 * cm, y, 10, "#5d6f68", "right"
         )
         y -= 0.6 * cm
 
@@ -558,9 +658,7 @@ def generate_student_pdf(
         c.showPage()
         y = height - 2.0 * cm
 
-    c.setFillColor(colors.HexColor("#0f4c3a"))
-    c.setFont(font_name, 12)
-    c.drawRightString(width - 1.5 * cm, y, ar_txt("الشواهد المصغّرة:"))
+    draw_ar_line(c, "الشواهد المصغّرة:", width - 1.5 * cm, y, 12, "#0f4c3a", "right")
     y -= 0.5 * cm
 
     if thumb_paths:
@@ -609,10 +707,8 @@ def generate_student_pdf(
             except Exception:
                 pass
     else:
-        c.setFillColor(colors.HexColor("#6b7c75"))
-        c.setFont(font_name, 10)
-        c.drawRightString(
-            width - 1.5 * cm, y - 0.4 * cm, ar_txt("لا توجد صور شواهد مرفقة للعرض المصغّر.")
+        draw_ar_line(
+            c, "لا توجد صور شواهد مرفقة للعرض المصغّر.", width - 1.5 * cm, y - 0.35 * cm, 10, "#6b7c75", "right"
         )
 
     c.save()
@@ -651,7 +747,7 @@ else:
     }
     """
 
-card_bg = "rgba(255, 255, 255, 0.88)" if (is_home and hero_uri) else "#ffffff"
+card_bg = "rgba(255, 255, 255, 0.90)" if (is_home and hero_uri) else "#ffffff"
 
 st.markdown(
     f"""
@@ -662,15 +758,9 @@ st.markdown(
         font-family: 'Cairo', sans-serif;
         direction: RTL;
         text-align: right;
-        color: #132620;
     }}
 
     {bg_rule}
-
-    label, .stSelectbox label, .stTextInput label, .stDateInput label, .stFileUploader label,
-    h1, h2, h3, h4, p, span, div {{
-        color: #132620;
-    }}
 
     .stButton > button, .stDownloadButton > button, .stLinkButton > a {{
         background-color: #0f4c3a !important;
@@ -711,19 +801,19 @@ st.markdown(
     .brand-name {{
         font-size: 1.15rem;
         font-weight: 800;
-        color: #0f4c3a !important;
+        color: #0f4c3a;
         margin: 0;
     }}
 
     .brand-desc {{
         font-size: 0.82rem;
-        color: #465850 !important;
+        color: #465850;
         margin: 2px 0 0 0;
     }}
 
     .cap-badge {{
         background: #fdf6e2;
-        color: #8a640b !important;
+        color: #8a640b;
         border: 1px solid #dfc067;
         border-radius: 999px;
         padding: 4px 12px;
@@ -754,13 +844,13 @@ st.markdown(
     .kpi-num {{
         font-size: 1.5rem;
         font-weight: 800;
-        color: #0f4c3a !important;
+        color: #0f4c3a;
         line-height: 1.2;
     }}
 
     .kpi-lbl {{
         font-size: 0.78rem;
-        color: #495a53 !important;
+        color: #495a53;
         margin-top: 4px;
         font-weight: 700;
     }}
