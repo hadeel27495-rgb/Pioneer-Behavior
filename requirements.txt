@@ -1,8 +1,7 @@
 streamlit
 pandas
 openpyxl
-psycopg2-binary
-fpdf2
+reportlab
 arabic-reshaper
 python-bidi
 Pillow
