@@ -613,45 +613,73 @@ st.markdown(
         font-family: 'Cairo', sans-serif;
         direction: RTL;
         text-align: right;
-    }
-
-    .stApp {
-        background: linear-gradient(180deg, #f8f7f2 0%, #eff5f2 100%);
         color: #132620;
     }
 
-    .light-header {
+    .stApp {
+        background: #f6f5ef;
+        color: #132620;
+    }
+
+    /* إظهار جميع التسميات والنصوص بوضوح فوق الخلفية الفاتحة */
+    label, .stSelectbox label, .stTextInput label, .stDateInput label, .stFileUploader label,
+    h1, h2, h3, h4, p, span, div {
+        color: #132620;
+    }
+
+    /* تنسيق جميع الأزرار بألوان واضحة متناسقة مع الهوية السعودية */
+    .stButton > button, .stDownloadButton > button, .stLinkButton > a {
+        background-color: #0f4c3a !important;
+        color: #ffffff !important;
+        border: 1px solid #0b3a2c !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        padding: 0.55rem 1rem !important;
+        box-shadow: 0 2px 6px rgba(15, 76, 58, 0.14) !important;
+    }
+
+    .stButton > button p, .stDownloadButton > button p, .stLinkButton > a p,
+    .stButton > button span, .stDownloadButton > button span, .stLinkButton > a span {
+        color: #ffffff !important;
+    }
+
+    .stButton > button:hover, .stDownloadButton > button:hover, .stLinkButton > a:hover {
+        background-color: #16664f !important;
+        border-color: #c59b27 !important;
+    }
+
+    /* بطاقة الهيدر العلوية */
+    .brand-card {
         background: #ffffff;
-        border: 1px solid #d8dfd9;
+        border: 1px solid #dcd9ce;
         border-right: 5px solid #0f4c3a;
         border-radius: 14px;
         padding: 12px 16px;
         margin-bottom: 10px;
-        box-shadow: 0 3px 12px rgba(15, 76, 58, 0.06);
+        box-shadow: 0 3px 10px rgba(15, 76, 58, 0.06);
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 10px;
     }
 
-    .header-title {
+    .brand-name {
         font-size: 1.15rem;
         font-weight: 800;
-        color: #0f4c3a;
+        color: #0f4c3a !important;
         margin: 0;
-        line-height: 1.4;
     }
 
-    .header-sub {
+    .brand-desc {
         font-size: 0.82rem;
-        color: #5b6d66;
-        margin: 0;
+        color: #55665f !important;
+        margin: 2px 0 0 0;
     }
 
-    .gold-pill {
-        background: #fdf7e4;
-        color: #8a640b;
-        border: 1px solid #e1c36b;
+    .cap-badge {
+        background: #fdf6e2;
+        color: #8a640b !important;
+        border: 1px solid #dfc067;
         border-radius: 999px;
         padding: 4px 12px;
         font-size: 0.82rem;
@@ -659,45 +687,59 @@ st.markdown(
         white-space: nowrap;
     }
 
-    .stat-box {
-        background: #ffffff;
-        border: 1px solid #dce4de;
-        border-top: 3px solid #c59b27;
-        border-radius: 14px;
-        padding: 14px;
-        text-align: center;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    /* بطاقات الإحصائيات */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin: 12px 0;
     }
 
-    .stat-num {
-        font-size: 1.65rem;
+    .kpi-item {
+        background: #ffffff;
+        border: 1px solid #dcd9ce;
+        border-top: 3px solid #c59b27;
+        border-radius: 14px;
+        padding: 12px 8px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .kpi-num {
+        font-size: 1.5rem;
         font-weight: 800;
-        color: #0f4c3a;
+        color: #0f4c3a !important;
         line-height: 1.2;
     }
 
-    .stat-txt {
-        font-size: 0.86rem;
-        color: #586a63;
+    .kpi-lbl {
+        font-size: 0.78rem;
+        color: #586962 !important;
         margin-top: 4px;
+        font-weight: 600;
     }
 
+    /* إطار صورة الهوية */
+    .hero-wrap {
+        background: #ffffff;
+        border: 1px solid #dcd9ce;
+        border-radius: 16px;
+        padding: 8px;
+        box-shadow: 0 4px 16px rgba(15, 76, 58, 0.07);
+        max-width: 460px;
+        margin: 0 auto 12px auto;
+    }
+
+    /* بطاقة الطالبة */
     .student-box {
         background: #ffffff;
-        border: 1px solid #dce4de;
+        border: 1px solid #dcd9ce;
+        border-right: 4px solid #c59b27;
         border-radius: 14px;
-        padding: 14px 16px;
+        padding: 12px 14px;
         margin-top: 12px;
         margin-bottom: 8px;
-        box-shadow: 0 2px 10px rgba(15, 76, 58, 0.04);
-    }
-
-    .hero-frame {
-        background: #ffffff;
-        border: 1px solid #d9e2dc;
-        border-radius: 16px;
-        padding: 10px;
-        box-shadow: 0 6px 20px rgba(15, 76, 58, 0.08);
+        box-shadow: 0 2px 8px rgba(15, 76, 58, 0.04);
     }
 </style>
 """,
@@ -720,37 +762,30 @@ nav_options = [
     "التقارير والنسخ الاحتياطي",
 ]
 
-# الشريط العلوي مع زر ☰ الأنيق على اليمين
-top_right, top_main = st.columns([1.3, 8.7])
-with top_right:
-    if st.button("☰", key="hamburger_btn", help="فتح قائمة النوافذ", use_container_width=True):
-        st.session_state.menu_open = not st.session_state.menu_open
-
-with top_main:
-    st.markdown(
-        f"""
-        <div class="light-header">
-            <div>
-                <p class="header-title">السلوك المتميز</p>
-                <p class="header-sub">{st.session_state.nav_page} • {SCHOOL_NAME}</p>
-            </div>
-            <span class="gold-pill">الحد الأقصى: {MAX_POINTS}</span>
+# الشريط العلوي مع زر ☰ واضح
+st.markdown(
+    f"""
+    <div class="brand-card">
+        <div>
+            <p class="brand-name">السلوك المتميز</p>
+            <p class="brand-desc">{st.session_state.nav_page} • {SCHOOL_NAME}</p>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        <span class="cap-badge">الحد الأقصى: {MAX_POINTS}</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-# قائمة النوافذ المرتبة عند الضغط على ☰
+if st.button("☰ النوافذ", key="hamburger_btn"):
+    st.session_state.menu_open = not st.session_state.menu_open
+
 if st.session_state.menu_open:
-    st.markdown("**النوافذ:**")
-    nav_cols = st.columns(len(nav_options))
     for idx, opt in enumerate(nav_options):
-        with nav_cols[idx]:
-            btn_type = "primary" if st.session_state.nav_page == opt else "secondary"
-            if st.button(opt, key=f"nav_btn_{idx}", type=btn_type, use_container_width=True):
-                st.session_state.nav_page = opt
-                st.session_state.menu_open = False
-                st.rerun()
+        label_txt = f"✓ {opt}" if st.session_state.nav_page == opt else opt
+        if st.button(label_txt, key=f"nav_btn_{idx}", use_container_width=True):
+            st.session_state.nav_page = opt
+            st.session_state.menu_open = False
+            st.rerun()
 
 students_df = load_students_df()
 records_df = load_records_df()
@@ -765,7 +800,7 @@ all_classes = sorted(
     )
 )
 class_options = ["جميع الفصول"] + all_classes
-selected_class = st.selectbox("🏫 الفصل:", class_options)
+selected_class = st.selectbox("🏫 اختر الفصل:", class_options)
 
 if selected_class != "جميع الفصول":
     f_students = students_df[students_df["classroom"] == selected_class].copy()
@@ -790,86 +825,65 @@ page = st.session_state.nav_page
 
 if page == "الواجهة الرئيسية":
     hero_path = find_hero_image()
-    col_visual, col_stats = st.columns([1.05, 1.45])
 
-    with col_visual:
-        if hero_path:
-            st.markdown('<div class="hero-frame">', unsafe_allow_html=True)
-            st.image(hero_path, use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            st.info("لم يتم العثور على صورة الهوية بعد. تأكد من رفعها داخل المستودع.")
+    total_students_count = (
+        len(f_students.drop_duplicates(subset=["name", "classroom"]))
+        if not f_students.empty
+        else 0
+    )
+    total_evidences_count = len(f_records) if not f_records.empty else 0
 
-    with col_stats:
-        st.markdown("### ملخص المتابعة")
-        st.caption(f"النطاق المعروض حالياً: {selected_class}")
-
-        total_students_count = (
-            len(f_students.drop_duplicates(subset=["name", "classroom"]))
-            if not f_students.empty
-            else 0
+    if not f_students.empty:
+        dedup_f = f_students.drop_duplicates(subset=["name", "classroom"])
+        total_points_sum = sum(
+            student_totals.get((str(row["name"]).strip(), str(row["classroom"]).strip()), 0)
+            for _, row in dedup_f.iterrows()
         )
-        total_evidences_count = len(f_records) if not f_records.empty else 0
+    elif not f_records.empty:
+        unique_rec_students = f_records[["student_name", "classroom"]].drop_duplicates()
+        total_points_sum = sum(
+            student_totals.get(
+                (str(row["student_name"]).strip(), str(row["classroom"]).strip()), 0
+            )
+            for _, row in unique_rec_students.iterrows()
+        )
+    else:
+        total_points_sum = 0
 
-        if not f_students.empty:
-            dedup_f = f_students.drop_duplicates(subset=["name", "classroom"])
-            total_points_sum = sum(
-                student_totals.get((str(row["name"]).strip(), str(row["classroom"]).strip()), 0)
-                for _, row in dedup_f.iterrows()
-            )
-        elif not f_records.empty:
-            unique_rec_students = f_records[["student_name", "classroom"]].drop_duplicates()
-            total_points_sum = sum(
-                student_totals.get(
-                    (str(row["student_name"]).strip(), str(row["classroom"]).strip()), 0
-                )
-                for _, row in unique_rec_students.iterrows()
-            )
-        else:
-            total_points_sum = 0
+    st.markdown(
+        f"""
+        <div class="kpi-grid">
+            <div class="kpi-item">
+                <div class="kpi-num">{total_students_count}</div>
+                <div class="kpi-lbl">الطالبات</div>
+            </div>
+            <div class="kpi-item">
+                <div class="kpi-num">{total_evidences_count}</div>
+                <div class="kpi-lbl">الشواهد</div>
+            </div>
+            <div class="kpi-item">
+                <div class="kpi-num">{total_points_sum}</div>
+                <div class="kpi-lbl">مجموع الدرجات</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        s1, s2, s3 = st.columns(3)
-        with s1:
-            st.markdown(
-                f"""
-                <div class="stat-box">
-                    <div class="stat-num">{total_students_count}</div>
-                    <div class="stat-txt">عدد الطالبات</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with s2:
-            st.markdown(
-                f"""
-                <div class="stat-box">
-                    <div class="stat-num">{total_evidences_count}</div>
-                    <div class="stat-txt">عدد الشواهد</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with s3:
-            st.markdown(
-                f"""
-                <div class="stat-box">
-                    <div class="stat-num">{total_points_sum}</div>
-                    <div class="stat-txt">مجموع الدرجات</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    q1, q2 = st.columns(2)
+    with q1:
+        if st.button("⭐ رصد سلوك وشاهد", use_container_width=True):
+            st.session_state.nav_page = "رصد السلوك والشواهد"
+            st.rerun()
+    with q2:
+        if st.button("🪪 بطاقات الطالبات و PDF", use_container_width=True):
+            st.session_state.nav_page = "بطاقات الطالبات والواتساب و PDF"
+            st.rerun()
 
-        st.markdown("")
-        q1, q2 = st.columns(2)
-        with q1:
-            if st.button("⭐ رصد سلوك وشاهد", type="primary", use_container_width=True):
-                st.session_state.nav_page = "رصد السلوك والشواهد"
-                st.rerun()
-        with q2:
-            if st.button("🪪 بطاقات الطالبات و PDF", use_container_width=True):
-                st.session_state.nav_page = "بطاقات الطالبات والواتساب و PDF"
-                st.rerun()
+    if hero_path:
+        st.markdown('<div class="hero-wrap">', unsafe_allow_html=True)
+        st.image(hero_path, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 elif page == "استيراد الطالبات":
     st.markdown("### استيراد الطالبات أو إضافتهن")
@@ -883,7 +897,7 @@ elif page == "استيراد الطالبات":
             sheet_name = st.selectbox("اختر الورقة:", xls.sheet_names)
             preview_df = pd.read_excel(xls, sheet_name=sheet_name)
             st.dataframe(preview_df.head(10), use_container_width=True)
-            if st.button("حفظ قائمة الطالبات", type="primary"):
+            if st.button("حفظ قائمة الطالبات"):
                 added = upsert_students_from_df(preview_df)
                 st.success(f"تمت إضافة {added} طالبة جديدة بنجاح.")
                 st.rerun()
@@ -933,7 +947,7 @@ elif page == "رصد السلوك والشواهد":
                     type=["png", "jpg", "jpeg", "mp4", "mov", "pdf"],
                 )
 
-            if st.form_submit_button("اعتماد وحفظ الشاهد", type="primary"):
+            if st.form_submit_button("اعتماد وحفظ الشاهد"):
                 if not observer_input.strip():
                     st.error("يرجى إدخال اسم الراصد.")
                 else:
@@ -1004,7 +1018,7 @@ elif page == "بطاقات الطالبات والواتساب و PDF":
                             <strong style="font-size:1.05rem; color:#132620;">{s_name}</strong>
                             <span style="color:#5d7068; margin-right:8px;">الفصل: {s_class}</span>
                         </div>
-                        <span class="gold-pill">{pts_val} / {MAX_POINTS} درجة • {cnt_val} شاهد</span>
+                        <span class="cap-badge">{pts_val} / {MAX_POINTS} درجة • {cnt_val} شاهد</span>
                     </div>
                 </div>
                 """,
@@ -1074,7 +1088,6 @@ elif page == "التقارير والنسخ الاحتياطي":
             data=backup_bytes,
             file_name=f"نسخة_احتياطية_السلوك_{date.today()}.json",
             mime="application/json",
-            type="primary",
             use_container_width=True,
         )
 
@@ -1084,7 +1097,7 @@ elif page == "التقارير والنسخ الاحتياطي":
             "ارفع ملف النسخة الاحتياطية (.json):", type=["json"]
         )
         if rest_file is not None:
-            if st.button("استعادة البيانات الآن", type="primary", use_container_width=True):
+            if st.button("استعادة البيانات الآن", use_container_width=True):
                 restore_backup_json(rest_file)
                 st.success("تمت استعادة البيانات بنجاح!")
                 st.rerun()
