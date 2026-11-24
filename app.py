@@ -36,9 +36,12 @@ MINISTRY_TITLE = "وزارة التعليم"
 FONT_PATH = "assets/fonts/Cairo-Regular.ttf"
 
 HERO_CANDIDATES = [
+    "assets/hero_edu.png",
     "assets/hero_edu.jpg",
     "assets/hero_edu.jpeg",
-    "assets/hero_edu.png",
+    "hero_edu.png",
+    "hero_edu.jpg",
+    "hero_edu.jpeg",
 ]
 
 BEHAVIOR_RULES = {
@@ -55,6 +58,16 @@ def find_hero_image() -> str:
     for p in HERO_CANDIDATES:
         if os.path.exists(p):
             return p
+
+    search_dirs = [".", "assets"]
+    img_exts = (".png", ".jpg", ".jpeg", ".webp")
+    for folder in search_dirs:
+        if os.path.isdir(folder):
+            for fname in sorted(os.listdir(folder)):
+                fpath = os.path.join(folder, fname)
+                if os.path.isfile(fpath) and fname.lower().endswith(img_exts):
+                    if not fname.lower().startswith(("app", "test")):
+                        return fpath
     return ""
 
 
@@ -63,7 +76,9 @@ def ensure_storage():
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     if not os.path.exists(STUDENTS_FILE):
-        pd.DataFrame(columns=["name", "classroom", "whatsapp"]).to_csv(STUDENTS_FILE, index=False, encoding="utf-8-sig")
+        pd.DataFrame(columns=["name", "classroom", "whatsapp"]).to_csv(
+            STUDENTS_FILE, index=False, encoding="utf-8-sig"
+        )
 
     if not os.path.exists(RECORDS_FILE):
         pd.DataFrame(
@@ -93,7 +108,9 @@ def load_students_df() -> pd.DataFrame:
     df["name"] = df["name"].astype(str).str.strip()
     df["classroom"] = df["classroom"].astype(str).str.strip()
     df["whatsapp"] = df["whatsapp"].astype(str).str.strip()
-    df = df[(df["name"] != "") & (df["classroom"] != "")].drop_duplicates(subset=["name", "classroom"], keep="last")
+    df = df[(df["name"] != "") & (df["classroom"] != "")].drop_duplicates(
+        subset=["name", "classroom"], keep="last"
+    )
     return df.sort_values(["classroom", "name"]).reset_index(drop=True)
 
 
@@ -230,7 +247,9 @@ def upsert_students_from_df(df_upload: pd.DataFrame) -> int:
 
 def add_single_student(name: str, classroom: str, whatsapp: str):
     df = load_students_df()
-    new_row = pd.DataFrame([{"name": name.strip(), "classroom": classroom.strip(), "whatsapp": whatsapp.strip()}])
+    new_row = pd.DataFrame(
+        [{"name": name.strip(), "classroom": classroom.strip(), "whatsapp": whatsapp.strip()}]
+    )
     save_students_df(pd.concat([df, new_row], ignore_index=True))
 
 
@@ -300,8 +319,11 @@ def add_behavior_record(
         ]
     )
 
-    # حفظ بترتيب زمني تصاعدي في الملف ثم عكسه عند القراءة
-    raw_df = pd.read_csv(RECORDS_FILE, dtype=str).fillna("") if os.path.exists(RECORDS_FILE) else pd.DataFrame()
+    raw_df = (
+        pd.read_csv(RECORDS_FILE, dtype=str).fillna("")
+        if os.path.exists(RECORDS_FILE)
+        else pd.DataFrame()
+    )
     combined = pd.concat([raw_df, new_rec], ignore_index=True)
     save_records_df(combined)
     return applied, new_total
@@ -318,7 +340,11 @@ def delete_record_by_id(record_id: str):
 def build_backup_json() -> bytes:
     ensure_storage()
     s_df = load_students_df()
-    r_df = pd.read_csv(RECORDS_FILE, dtype=str).fillna("") if os.path.exists(RECORDS_FILE) else pd.DataFrame()
+    r_df = (
+        pd.read_csv(RECORDS_FILE, dtype=str).fillna("")
+        if os.path.exists(RECORDS_FILE)
+        else pd.DataFrame()
+    )
 
     files_b64 = {}
     if os.path.exists(UPLOAD_DIR):
@@ -433,14 +459,14 @@ def generate_student_pdf(
             pdfmetrics.registerFont(TTFont(font_name, FONT_PATH))
 
     header_h = 3.2 * cm
-    c.setFillColor(colors.HexColor("#0d3b2e"))
+    c.setFillColor(colors.HexColor("#0f4c3a"))
     c.rect(0, height - header_h, width, header_h, fill=1, stroke=0)
 
-    c.setStrokeColor(colors.HexColor("#d4af37"))
+    c.setStrokeColor(colors.HexColor("#c59b27"))
     c.setLineWidth(2)
     c.line(0, height - header_h, width, height - header_h)
 
-    c.setFillColor(colors.HexColor("#e6c86e"))
+    c.setFillColor(colors.HexColor("#f3d882"))
     c.setFont(font_name, 13)
     c.drawRightString(width - 1.5 * cm, height - 1.1 * cm, ar_txt(MINISTRY_TITLE))
 
@@ -448,18 +474,20 @@ def generate_student_pdf(
     c.setFont(font_name, 11)
     c.drawRightString(width - 1.5 * cm, height - 1.75 * cm, ar_txt(EDU_ADMIN_TITLE))
 
-    c.setFillColor(colors.HexColor("#f2d279"))
+    c.setFillColor(colors.HexColor("#f7e3a1"))
     c.setFont(font_name, 12)
-    c.drawCentredString(width / 2, height - 2.55 * cm, ar_txt(f"تقرير شواهد السلوك المتميز — {SCHOOL_NAME}"))
+    c.drawCentredString(
+        width / 2, height - 2.55 * cm, ar_txt(f"تقرير شواهد السلوك المتميز — {SCHOOL_NAME}")
+    )
 
     y = height - header_h - 1.0 * cm
     box_h = 2.6 * cm
-    c.setFillColor(colors.HexColor("#f7faf8"))
-    c.setStrokeColor(colors.HexColor("#14533f"))
+    c.setFillColor(colors.HexColor("#fbfaf5"))
+    c.setStrokeColor(colors.HexColor("#c59b27"))
     c.setLineWidth(1.2)
     c.roundRect(1.5 * cm, y - box_h, width - 3.0 * cm, box_h, 8, fill=1, stroke=1)
 
-    c.setFillColor(colors.HexColor("#0b1915"))
+    c.setFillColor(colors.HexColor("#132620"))
     c.setFont(font_name, 12)
     c.drawRightString(width - 2.0 * cm, y - 0.75 * cm, ar_txt(f"اسم الطالبة: {student_name}"))
     c.drawRightString(
@@ -468,7 +496,7 @@ def generate_student_pdf(
         ar_txt(f"الفصل: {classroom}   |   الواتساب: {whatsapp or 'غير مسجل'}"),
     )
 
-    c.setFillColor(colors.HexColor("#0d3b2e"))
+    c.setFillColor(colors.HexColor("#0f4c3a"))
     c.setFont(font_name, 12)
     c.drawRightString(
         width - 2.0 * cm,
@@ -477,7 +505,7 @@ def generate_student_pdf(
     )
 
     y = y - box_h - 0.9 * cm
-    c.setFillColor(colors.HexColor("#0d3b2e"))
+    c.setFillColor(colors.HexColor("#0f4c3a"))
     c.setFont(font_name, 12)
     c.drawRightString(width - 1.5 * cm, y, ar_txt("سجل الشواهد والدرجات المرصودة:"))
     y -= 0.6 * cm
@@ -489,8 +517,11 @@ def generate_student_pdf(
                 c.showPage()
                 y = height - 2.0 * cm
 
-            line_txt = f"• {rec['behavior']}  (+{rec['points']} درجة) — التاريخ: {rec['date']} — الراصد: {rec['observer_name']}"
-            c.setFillColor(colors.HexColor("#1a2622"))
+            line_txt = (
+                f"• {rec['behavior']}  (+{rec['points']} درجة) — "
+                f"التاريخ: {rec['date']} — الراصد: {rec['observer_name']}"
+            )
+            c.setFillColor(colors.HexColor("#1e2d27"))
             c.setFont(font_name, 10)
             c.drawRightString(width - 1.5 * cm, y, ar_txt(line_txt))
             y -= 0.55 * cm
@@ -499,9 +530,11 @@ def generate_student_pdf(
             if ev_p and os.path.exists(ev_p) and ev_p.lower().endswith((".png", ".jpg", ".jpeg")):
                 thumb_paths.append(ev_p)
     else:
-        c.setFillColor(colors.HexColor("#556660"))
+        c.setFillColor(colors.HexColor("#5d6f68"))
         c.setFont(font_name, 10)
-        c.drawRightString(width - 1.5 * cm, y, ar_txt("لا توجد شواهد مسجلة لهذه الطالبة حتى الآن."))
+        c.drawRightString(
+            width - 1.5 * cm, y, ar_txt("لا توجد شواهد مسجلة لهذه الطالبة حتى الآن.")
+        )
         y -= 0.6 * cm
 
     y -= 0.5 * cm
@@ -509,7 +542,7 @@ def generate_student_pdf(
         c.showPage()
         y = height - 2.0 * cm
 
-    c.setFillColor(colors.HexColor("#0d3b2e"))
+    c.setFillColor(colors.HexColor("#0f4c3a"))
     c.setFont(font_name, 12)
     c.drawRightString(width - 1.5 * cm, y, ar_txt("الشواهد المصغّرة:"))
     y -= 0.5 * cm
@@ -536,7 +569,7 @@ def generate_student_pdf(
             x_pos = width - 1.5 * cm - (col_idx + 1) * thumb_w - (col_idx * gap_x)
             y_pos = y - thumb_h if row_idx == 0 else y
 
-            c.setStrokeColor(colors.HexColor("#cbd5d0"))
+            c.setStrokeColor(colors.HexColor("#c59b27"))
             c.setLineWidth(1)
             c.rect(x_pos, y_pos, thumb_w, thumb_h, fill=0, stroke=1)
 
@@ -560,9 +593,11 @@ def generate_student_pdf(
             except Exception:
                 pass
     else:
-        c.setFillColor(colors.HexColor("#667770"))
+        c.setFillColor(colors.HexColor("#6b7c75"))
         c.setFont(font_name, 10)
-        c.drawRightString(width - 1.5 * cm, y - 0.4 * cm, ar_txt("لا توجد صور شواهد مرفقة للعرض المصغّر."))
+        c.drawRightString(
+            width - 1.5 * cm, y - 0.4 * cm, ar_txt("لا توجد صور شواهد مرفقة للعرض المصغّر.")
+        )
 
     c.save()
     buf.seek(0)
@@ -581,71 +616,88 @@ st.markdown(
     }
 
     .stApp {
-        background-color: #0b1915;
-        color: #f4f7f5;
+        background: linear-gradient(180deg, #f8f7f2 0%, #eff5f2 100%);
+        color: #132620;
     }
 
-    .top-bar {
+    .light-header {
+        background: #ffffff;
+        border: 1px solid #d8dfd9;
+        border-right: 5px solid #0f4c3a;
+        border-radius: 14px;
+        padding: 12px 16px;
+        margin-bottom: 10px;
+        box-shadow: 0 3px 12px rgba(15, 76, 58, 0.06);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: linear-gradient(135deg, #0d3b2e 0%, #14533f 100%);
-        border: 1px solid rgba(212, 175, 55, 0.45);
-        border-radius: 16px;
-        padding: 12px 18px;
-        margin-bottom: 14px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        gap: 10px;
     }
 
-    .brand-title {
-        font-size: 1.2rem;
+    .header-title {
+        font-size: 1.15rem;
         font-weight: 800;
-        color: #ffffff;
+        color: #0f4c3a;
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    .header-sub {
+        font-size: 0.82rem;
+        color: #5b6d66;
         margin: 0;
     }
 
-    .brand-sub {
-        font-size: 0.85rem;
-        color: #e6c86e;
-        margin: 0;
+    .gold-pill {
+        background: #fdf7e4;
+        color: #8a640b;
+        border: 1px solid #e1c36b;
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 0.82rem;
+        font-weight: 800;
+        white-space: nowrap;
     }
 
-    .metric-card {
-        background: #122620;
-        border: 1px solid rgba(212, 175, 55, 0.3);
+    .stat-box {
+        background: #ffffff;
+        border: 1px solid #dce4de;
+        border-top: 3px solid #c59b27;
+        border-radius: 14px;
+        padding: 14px;
+        text-align: center;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+    }
+
+    .stat-num {
+        font-size: 1.65rem;
+        font-weight: 800;
+        color: #0f4c3a;
+        line-height: 1.2;
+    }
+
+    .stat-txt {
+        font-size: 0.86rem;
+        color: #586a63;
+        margin-top: 4px;
+    }
+
+    .student-box {
+        background: #ffffff;
+        border: 1px solid #dce4de;
         border-radius: 14px;
         padding: 14px 16px;
-        text-align: center;
+        margin-top: 12px;
+        margin-bottom: 8px;
+        box-shadow: 0 2px 10px rgba(15, 76, 58, 0.04);
     }
 
-    .metric-value {
-        font-size: 1.75rem;
-        font-weight: 800;
-        color: #e6c86e;
-    }
-
-    .metric-label {
-        font-size: 0.9rem;
-        color: #d6e2dc;
-    }
-
-    .student-card {
-        background: #11241e;
-        border: 1px solid rgba(212, 175, 55, 0.28);
+    .hero-frame {
+        background: #ffffff;
+        border: 1px solid #d9e2dc;
         border-radius: 16px;
-        padding: 16px;
-        margin-bottom: 10px;
-    }
-
-    .badge-cap {
-        display: inline-block;
-        background: rgba(212, 175, 55, 0.16);
-        color: #f2d279;
-        border: 1px solid rgba(212, 175, 55, 0.45);
-        border-radius: 999px;
-        padding: 3px 12px;
-        font-size: 0.82rem;
-        font-weight: 700;
+        padding: 10px;
+        box-shadow: 0 6px 20px rgba(15, 76, 58, 0.08);
     }
 </style>
 """,
@@ -657,24 +709,8 @@ ensure_storage()
 if "nav_page" not in st.session_state:
     st.session_state.nav_page = "الواجهة الرئيسية"
 
-# زر الثلاث خطوط على اليمين لعرض النوافذ
-col_menu_btn, col_banner = st.columns([1.4, 8.6])
-with col_menu_btn:
-    if st.button("☰ النوافذ", use_container_width=True):
-        st.session_state.show_nav_drawer = not st.session_state.get("show_nav_drawer", True)
-with col_banner:
-    st.markdown(
-        """
-        <div class="top-bar">
-            <div>
-                <p class="brand-title">السلوك المتميز — نظام توثيق ومتابعة الانضباط الإيجابي</p>
-                <p class="brand-sub">سقف الدرجات: 20 درجة لكل طالبة • نسخ احتياطي واستعادة فورية • ربط الواتساب و PDF</p>
-            </div>
-            <span class="badge-cap">20 / 20</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+if "menu_open" not in st.session_state:
+    st.session_state.menu_open = False
 
 nav_options = [
     "الواجهة الرئيسية",
@@ -684,20 +720,42 @@ nav_options = [
     "التقارير والنسخ الاحتياطي",
 ]
 
-if st.session_state.get("show_nav_drawer", True):
-    with st.expander("☰ قائمة النوافذ", expanded=True):
-        chosen_page = st.radio(
-            "اختر النافذة:",
-            nav_options,
-            index=nav_options.index(st.session_state.nav_page),
-            horizontal=True,
-        )
-        st.session_state.nav_page = chosen_page
+# الشريط العلوي مع زر ☰ الأنيق على اليمين
+top_right, top_main = st.columns([1.3, 8.7])
+with top_right:
+    if st.button("☰", key="hamburger_btn", help="فتح قائمة النوافذ", use_container_width=True):
+        st.session_state.menu_open = not st.session_state.menu_open
+
+with top_main:
+    st.markdown(
+        f"""
+        <div class="light-header">
+            <div>
+                <p class="header-title">السلوك المتميز</p>
+                <p class="header-sub">{st.session_state.nav_page} • {SCHOOL_NAME}</p>
+            </div>
+            <span class="gold-pill">الحد الأقصى: {MAX_POINTS}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+# قائمة النوافذ المرتبة عند الضغط على ☰
+if st.session_state.menu_open:
+    st.markdown("**النوافذ:**")
+    nav_cols = st.columns(len(nav_options))
+    for idx, opt in enumerate(nav_options):
+        with nav_cols[idx]:
+            btn_type = "primary" if st.session_state.nav_page == opt else "secondary"
+            if st.button(opt, key=f"nav_btn_{idx}", type=btn_type, use_container_width=True):
+                st.session_state.nav_page = opt
+                st.session_state.menu_open = False
+                st.rerun()
 
 students_df = load_students_df()
 records_df = load_records_df()
 
-# فلتر الفصل المستقل (كل فصل لحال)
+# فلتر مستقل لكل فصل
 all_classes = sorted(
     list(
         set(
@@ -707,7 +765,7 @@ all_classes = sorted(
     )
 )
 class_options = ["جميع الفصول"] + all_classes
-selected_class = st.selectbox("🏫 اختر الفصل (عرض مستقل لكل فصل):", class_options)
+selected_class = st.selectbox("🏫 الفصل:", class_options)
 
 if selected_class != "جميع الفصول":
     f_students = students_df[students_df["classroom"] == selected_class].copy()
@@ -732,18 +790,25 @@ page = st.session_state.nav_page
 
 if page == "الواجهة الرئيسية":
     hero_path = find_hero_image()
-    c_img, c_info = st.columns([1.1, 1.9])
-    with c_img:
+    col_visual, col_stats = st.columns([1.05, 1.45])
+
+    with col_visual:
         if hero_path:
-            st.image(hero_path, caption="التعليم — بناء جيل .. لمستقبل أرقى", use_container_width=True)
+            st.markdown('<div class="hero-frame">', unsafe_allow_html=True)
+            st.image(hero_path, use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)
         else:
-            st.info("ارفع صورة الهوية في المسار `assets/hero_edu.jpg` (أو `.png`) داخل GitHub لتظهر هنا.")
+            st.info("لم يتم العثور على صورة الهوية بعد. تأكد من رفعها داخل المستودع.")
 
-    with c_info:
-        st.markdown("## 🌟 لوحة التحكم الرئيسية")
-        st.write("متابعة السلوك المتميز وتوثيق الشواهد لكل فصل بشكل مستقل مع إمكانية حفظ واستعادة نسخة احتياطية كاملة في أي وقت.")
+    with col_stats:
+        st.markdown("### ملخص المتابعة")
+        st.caption(f"النطاق المعروض حالياً: {selected_class}")
 
-        total_students_count = len(f_students.drop_duplicates(subset=["name", "classroom"])) if not f_students.empty else 0
+        total_students_count = (
+            len(f_students.drop_duplicates(subset=["name", "classroom"]))
+            if not f_students.empty
+            else 0
+        )
         total_evidences_count = len(f_records) if not f_records.empty else 0
 
         if not f_students.empty:
@@ -755,57 +820,70 @@ if page == "الواجهة الرئيسية":
         elif not f_records.empty:
             unique_rec_students = f_records[["student_name", "classroom"]].drop_duplicates()
             total_points_sum = sum(
-                student_totals.get((str(row["student_name"]).strip(), str(row["classroom"]).strip()), 0)
+                student_totals.get(
+                    (str(row["student_name"]).strip(), str(row["classroom"]).strip()), 0
+                )
                 for _, row in unique_rec_students.iterrows()
             )
         else:
             total_points_sum = 0
 
-        m1, m2, m3 = st.columns(3)
-        with m1:
+        s1, s2, s3 = st.columns(3)
+        with s1:
             st.markdown(
                 f"""
-                <div class="metric-card">
-                    <div class="metric-value">{total_students_count}</div>
-                    <div class="metric-label">إجمالي الطالبات ({selected_class})</div>
+                <div class="stat-box">
+                    <div class="stat-num">{total_students_count}</div>
+                    <div class="stat-txt">عدد الطالبات</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-        with m2:
+        with s2:
             st.markdown(
                 f"""
-                <div class="metric-card">
-                    <div class="metric-value">{total_evidences_count}</div>
-                    <div class="metric-label">إجمالي الشواهد ({selected_class})</div>
+                <div class="stat-box">
+                    <div class="stat-num">{total_evidences_count}</div>
+                    <div class="stat-txt">عدد الشواهد</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-        with m3:
+        with s3:
             st.markdown(
                 f"""
-                <div class="metric-card">
-                    <div class="metric-value">{total_points_sum}</div>
-                    <div class="metric-label">مجموع الدرجات ({selected_class})</div>
+                <div class="stat-box">
+                    <div class="stat-num">{total_points_sum}</div>
+                    <div class="stat-txt">مجموع الدرجات</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
+        st.markdown("")
+        q1, q2 = st.columns(2)
+        with q1:
+            if st.button("⭐ رصد سلوك وشاهد", type="primary", use_container_width=True):
+                st.session_state.nav_page = "رصد السلوك والشواهد"
+                st.rerun()
+        with q2:
+            if st.button("🪪 بطاقات الطالبات و PDF", use_container_width=True):
+                st.session_state.nav_page = "بطاقات الطالبات والواتساب و PDF"
+                st.rerun()
+
 elif page == "استيراد الطالبات":
-    st.markdown("### 📥 استيراد قائمة الطالبات من ملف Excel أو إضافة طالبة")
+    st.markdown("### استيراد الطالبات أو إضافتهن")
     uploaded_excel = st.file_uploader(
-        "ارفع ملف Excel (.xlsx) يحتوي على أعمدة: (اسم الطالبة) و (الفصل) واختيارياً (الواتساب)",
+        "ملف Excel (.xlsx) يحتوي على أعمدة: (اسم الطالبة) و (الفصل) واختيارياً (الواتساب)",
         type=["xlsx"],
     )
     if uploaded_excel is not None:
         try:
             xls = pd.ExcelFile(uploaded_excel)
-            sheet_name = st.selectbox("اختر الورقة (Sheet):", xls.sheet_names)
+            sheet_name = st.selectbox("اختر الورقة:", xls.sheet_names)
             preview_df = pd.read_excel(xls, sheet_name=sheet_name)
             st.dataframe(preview_df.head(10), use_container_width=True)
-            if st.button("💾 حفظ الطالبات", type="primary"):
+            if st.button("حفظ قائمة الطالبات", type="primary"):
                 added = upsert_students_from_df(preview_df)
                 st.success(f"تمت إضافة {added} طالبة جديدة بنجاح.")
                 st.rerun()
@@ -813,48 +891,57 @@ elif page == "استيراد الطالبات":
             st.error(f"تعذر قراءة الملف: {e}")
 
     st.markdown("---")
-    st.markdown("#### ➕ إضافة طالبة يدوياً")
+    st.markdown("#### إضافة طالبة يدوياً")
     with st.form("add_student_form", clear_on_submit=True):
-        s1, s2, s3 = st.columns(3)
-        with s1:
+        c1, c2, c3 = st.columns(3)
+        with c1:
             new_name = st.text_input("اسم الطالبة")
-        with s2:
-            new_class = st.text_input("الفصل", value="" if selected_class == "جميع الفصول" else selected_class)
-        with s3:
+        with c2:
+            new_class = st.text_input(
+                "الفصل", value="" if selected_class == "جميع الفصول" else selected_class
+            )
+        with c3:
             new_wa = st.text_input("رقم الواتساب (مثال: 05xxxxxxxx)")
-        if st.form_submit_button("إضافة الطالبة") and new_name.strip() and new_class.strip():
+        if st.form_submit_button("حفظ الطالبة") and new_name.strip() and new_class.strip():
             add_single_student(new_name, new_class, new_wa)
-            st.success("تمت إضافة الطالبة بنجاح.")
+            st.success("تمت إضافة الطالبة.")
             st.rerun()
 
 elif page == "رصد السلوك والشواهد":
-    st.markdown("### ⭐ رصد السلوك المتميز والشواهد")
+    st.markdown("### رصد السلوك المتميز والشواهد")
     if f_students.empty:
-        st.warning("لا توجد طالبات مسجلات في هذا الفصل حالياً. انتقل إلى نافذة (استيراد الطالبات) أولاً.")
+        st.warning("لا توجد طالبات مسجلات في هذا الفصل حالياً.")
     else:
         class_students_list = sorted(f_students["name"].unique().tolist())
         with st.form("record_behavior_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
-                chosen_student = st.selectbox("اختر الطالبة:", class_students_list)
+                chosen_student = st.selectbox("الطالبة:", class_students_list)
                 student_row = f_students[f_students["name"] == chosen_student].iloc[0]
                 default_wa = str(student_row.get("whatsapp", "") or "")
-                wa_input = st.text_input("خانة الواتساب:", value=default_wa)
+                wa_input = st.text_input("رقم الواتساب:", value=default_wa)
                 observer_input = st.text_input("اسم الراصد:")
             with c2:
-                chosen_behavior = st.selectbox("السلوك المتميز:", list(BEHAVIOR_RULES.keys()))
+                chosen_behavior = st.selectbox("مجال السلوك المتميز:", list(BEHAVIOR_RULES.keys()))
                 auto_pts = BEHAVIOR_RULES[chosen_behavior]
-                st.info(f"النقاط التلقائية لهذا السلوك: **{auto_pts}** درجات (بحد أقصى **{MAX_POINTS}** درجة للطالبة)")
+                st.caption(
+                    f"النقاط المقررة: {auto_pts} درجات • الحد الأقصى لكل طالبة: {MAX_POINTS} درجة"
+                )
                 rec_date_input = st.date_input("التاريخ:", value=date.today())
-                evidence_file = st.file_uploader("إرفاق شاهد (صورة / فيديو / PDF):", type=["png", "jpg", "jpeg", "mp4", "mov", "pdf"])
+                evidence_file = st.file_uploader(
+                    "إرفاق شاهد (صورة / فيديو / PDF):",
+                    type=["png", "jpg", "jpeg", "mp4", "mov", "pdf"],
+                )
 
-            if st.form_submit_button("اعتماد وحفظ الشاهد والدرجات", type="primary"):
+            if st.form_submit_button("اعتماد وحفظ الشاهد", type="primary"):
                 if not observer_input.strip():
                     st.error("يرجى إدخال اسم الراصد.")
                 else:
                     saved_rel_path = ""
                     if evidence_file is not None:
-                        safe_filename = f"{chosen_student}_{rec_date_input}_{evidence_file.name}".replace(" ", "_")
+                        safe_filename = f"{chosen_student}_{rec_date_input}_{evidence_file.name}".replace(
+                            " ", "_"
+                        )
                         saved_rel_path = os.path.join(UPLOAD_DIR, safe_filename)
                         with open(saved_rel_path, "wb") as f_out:
                             f_out.write(evidence_file.getbuffer())
@@ -869,12 +956,14 @@ elif page == "رصد السلوك والشواهد":
                         observer_name=observer_input,
                         evidence_path=saved_rel_path,
                     )
-                    st.success(f"تم اعتماد ({applied}) درجة. إجمالي نقاط الطالبة الحالي: ({new_total} / {MAX_POINTS}).")
+                    st.success(
+                        f"تم اعتماد ({applied}) درجة. الرصيد الحالي للطالبة: ({new_total} / {MAX_POINTS})."
+                    )
                     st.rerun()
 
 elif page == "بطاقات الطالبات والواتساب و PDF":
-    st.markdown("### 🪪 بطاقات الطالبات والواتساب وتقرير PDF")
-    search_q = st.text_input("🔍 بحث سريع باسم الطالبة أو رقم الواتساب:")
+    st.markdown("### بطاقات الطالبات والواتساب وتقرير PDF")
+    search_q = st.text_input("بحث باسم الطالبة أو رقم الواتساب:")
 
     if f_students.empty:
         st.info("لا توجد طالبات لعرضهن في هذا الفصل.")
@@ -896,36 +985,38 @@ elif page == "بطاقات الطالبات والواتساب و PDF":
             cnt_val = student_counts.get(key, 0)
 
             s_recs = (
-                records_df[(records_df["student_name"] == s_name) & (records_df["classroom"] == s_class)]
+                records_df[
+                    (records_df["student_name"] == s_name) & (records_df["classroom"] == s_class)
+                ]
                 if not records_df.empty
                 else pd.DataFrame()
             )
-            latest_behavior = str(s_recs.iloc[0]["behavior"]) if not s_recs.empty else "سلوك متميز"
+            latest_behavior = (
+                str(s_recs.iloc[0]["behavior"]) if not s_recs.empty else "سلوك متميز"
+            )
             wa_url = build_whatsapp_link(s_wa, s_name, s_class, latest_behavior, pts_val)
 
             st.markdown(
                 f"""
-                <div class="student-card">
+                <div class="student-box">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                         <div>
-                            <strong style="font-size:1.1rem; color:#ffffff;">{s_name}</strong>
-                            <span style="color:#a7bdb4; margin-right:10px;">الفصل: {s_class}</span>
+                            <strong style="font-size:1.05rem; color:#132620;">{s_name}</strong>
+                            <span style="color:#5d7068; margin-right:8px;">الفصل: {s_class}</span>
                         </div>
-                        <span class="badge-cap">{pts_val} / {MAX_POINTS} درجة • {cnt_val} شاهد</span>
-                    </div>
-                    <div style="margin-top:8px; color:#d0ded8; font-size:0.9rem;">
-                        الواتساب: <strong>{s_wa if s_wa else "غير مسجل"}</strong>
+                        <span class="gold-pill">{pts_val} / {MAX_POINTS} درجة • {cnt_val} شاهد</span>
                     </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-            c_wa1, c_wa2, c_wa3 = st.columns([2, 1.4, 2.2])
+            c_wa1, c_wa2, c_wa3 = st.columns([2.2, 1.3, 2.0])
             with c_wa1:
                 new_wa_val = st.text_input(
-                    "تحديث الواتساب",
+                    "الواتساب",
                     value=s_wa,
+                    placeholder="رقم الواتساب (05xxxxxxxx)",
                     key=f"wa_edit_{s_class}_{s_name}",
                     label_visibility="collapsed",
                 )
@@ -935,9 +1026,8 @@ elif page == "بطاقات الطالبات والواتساب و PDF":
                     st.success("تم حفظ رقم الواتساب.")
                     st.rerun()
             with c_wa3:
-                st.link_button("💬 إرسال واتساب", wa_url, use_container_width=True)
+                st.link_button("إرسال واتساب", wa_url, use_container_width=True)
 
-            # زر طباعة / تحميل تقرير PDF للطالبة تحت اسمها مع صور الشواهد المصغّرة
             pdf_bytes = generate_student_pdf(
                 student_name=s_name,
                 classroom=s_class,
@@ -946,7 +1036,7 @@ elif page == "بطاقات الطالبات والواتساب و PDF":
                 s_recs=s_recs,
             )
             st.download_button(
-                label=f"📄 طباعة / تحميل تقرير PDF ({s_name})",
+                label=f"تقرير PDF — {s_name}",
                 data=pdf_bytes,
                 file_name=f"تقرير_السلوك_{s_name}_{s_class}.pdf".replace(" ", "_"),
                 mime="application/pdf",
@@ -955,29 +1045,32 @@ elif page == "بطاقات الطالبات والواتساب و PDF":
             )
 
             if not s_recs.empty:
-                with st.expander(f"عرض سجل شواهد ({s_name})"):
+                with st.expander(f"سجل شواهد الطالبة ({s_name})"):
                     for _, rec in s_recs.iterrows():
-                        st.write(f"• **{rec['behavior']}** (+{rec['points']} درجة) — التاريخ: {rec['date']} — الراصد: {rec['observer_name']}")
+                        st.write(
+                            f"• **{rec['behavior']}** (+{rec['points']} درجة) — "
+                            f"التاريخ: {rec['date']} — الراصد: {rec['observer_name']}"
+                        )
                         ev_path = str(rec.get("evidence_file", "") or "")
                         if ev_path and os.path.exists(ev_path):
                             lower_p = ev_path.lower()
                             if lower_p.endswith((".png", ".jpg", ".jpeg")):
-                                st.image(ev_path, width=240)
+                                st.image(ev_path, width=220)
                             elif lower_p.endswith((".mp4", ".mov")):
                                 st.video(ev_path)
-                        if st.button("🗑️ حذف هذا السجل", key=f"del_rec_{rec['record_id']}"):
+                        if st.button("حذف هذا السجل", key=f"del_rec_{rec['record_id']}"):
                             delete_record_by_id(str(rec["record_id"]))
                             st.rerun()
 
 elif page == "التقارير والنسخ الاحتياطي":
-    st.markdown("### 📊 التقارير والنسخ الاحتياطي الفوري")
+    st.markdown("### التقارير والنسخ الاحتياطي")
 
     b_col1, b_col2 = st.columns(2)
     with b_col1:
-        st.markdown("#### 💾 تحميل نسخة احتياطية شاملة (حفظ الأمان)")
+        st.markdown("#### حفظ نسخة احتياطية كاملة")
         backup_bytes = build_backup_json()
         st.download_button(
-            label="⬇️ تحميل ملف النسخة الاحتياطية الكاملة (.json)",
+            label="تحميل النسخة الاحتياطية (.json)",
             data=backup_bytes,
             file_name=f"نسخة_احتياطية_السلوك_{date.today()}.json",
             mime="application/json",
@@ -986,19 +1079,21 @@ elif page == "التقارير والنسخ الاحتياطي":
         )
 
     with b_col2:
-        st.markdown("#### ♻️ استعادة نسخة احتياطية سابقة")
-        rest_file = st.file_uploader("ارفع ملف النسخة الاحتياطية (.json) لاستعادة كل شيء فوراً:", type=["json"])
+        st.markdown("#### استعادة نسخة احتياطية")
+        rest_file = st.file_uploader(
+            "ارفع ملف النسخة الاحتياطية (.json):", type=["json"]
+        )
         if rest_file is not None:
             if st.button("استعادة البيانات الآن", type="primary", use_container_width=True):
                 restore_backup_json(rest_file)
-                st.success("تمت استعادة الطالبات والدرجات والشواهد بنجاح!")
+                st.success("تمت استعادة البيانات بنجاح!")
                 st.rerun()
 
     st.markdown("---")
-    st.markdown("#### 📥 تصدير تقرير Excel للفصل")
+    st.markdown("#### تصدير Excel وسجل الفصل")
     excel_bytes = build_summary_excel(f_students, f_records)
     st.download_button(
-        label=f"📊 تحميل تقرير Excel ({selected_class})",
+        label=f"تحميل ملف Excel ({selected_class})",
         data=excel_bytes,
         file_name=f"السلوك_المتميز_{selected_class}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
