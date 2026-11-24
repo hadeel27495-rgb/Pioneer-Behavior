@@ -50,6 +50,19 @@ BEHAVIOR_RULES = {
     "متميز": 4,
 }
 
+RECORD_COLS = [
+    "record_id",
+    "student_name",
+    "classroom",
+    "whatsapp",
+    "behavior",
+    "points",
+    "date",
+    "observer_name",
+    "evidence_text",
+    "evidence_file",
+]
+
 if "mem_uploads" not in st.session_state:
     st.session_state.mem_uploads = {}
 
@@ -143,19 +156,9 @@ def ensure_storage():
         )
 
     if not os.path.exists(RECORDS_FILE):
-        pd.DataFrame(
-            columns=[
-                "record_id",
-                "student_name",
-                "classroom",
-                "whatsapp",
-                "behavior",
-                "points",
-                "date",
-                "observer_name",
-                "evidence_file",
-            ]
-        ).to_csv(RECORDS_FILE, index=False, encoding="utf-8-sig")
+        pd.DataFrame(columns=RECORD_COLS).to_csv(
+            RECORDS_FILE, index=False, encoding="utf-8-sig"
+        )
 
 
 def load_students_df() -> pd.DataFrame:
@@ -196,31 +199,8 @@ def load_records_df() -> pd.DataFrame:
     try:
         df = pd.read_csv(RECORDS_FILE, dtype=str).fillna("")
     except Exception:
-        df = pd.DataFrame(
-            columns=[
-                "record_id",
-                "student_name",
-                "classroom",
-                "whatsapp",
-                "behavior",
-                "points",
-                "date",
-                "observer_name",
-                "evidence_file",
-            ]
-        )
-    expected_cols = [
-        "record_id",
-        "student_name",
-        "classroom",
-        "whatsapp",
-        "behavior",
-        "points",
-        "date",
-        "observer_name",
-        "evidence_file",
-    ]
-    for col in expected_cols:
+        df = pd.DataFrame(columns=RECORD_COLS)
+    for col in RECORD_COLS:
         if col not in df.columns:
             df[col] = ""
     df["points"] = pd.to_numeric(df["points"], errors="coerce").fillna(0).astype(int)
@@ -230,6 +210,7 @@ def load_records_df() -> pd.DataFrame:
     df["behavior"] = df["behavior"].apply(display_txt)
     df["date"] = df["date"].astype(str).str.strip()
     df["observer_name"] = df["observer_name"].apply(display_txt)
+    df["evidence_text"] = df["evidence_text"].astype(str).str.strip()
     df["evidence_file"] = df["evidence_file"].astype(str).str.strip()
     df = df[(df["student_name"] != "") & (df["classroom"] != "")].reset_index(drop=True)
     if not df.empty and "record_id" in df.columns:
@@ -239,7 +220,11 @@ def load_records_df() -> pd.DataFrame:
 
 def save_records_df(df: pd.DataFrame):
     ensure_storage()
-    df.to_csv(RECORDS_FILE, index=False, encoding="utf-8-sig")
+    clean_df = df.copy()
+    for col in RECORD_COLS:
+        if col not in clean_df.columns:
+            clean_df[col] = ""
+    clean_df[RECORD_COLS].to_csv(RECORDS_FILE, index=False, encoding="utf-8-sig")
 
 
 def clean_phone(phone: str) -> str:
@@ -402,6 +387,7 @@ def add_behavior_record(
     points: int,
     rec_date: str,
     observer_name: str,
+    evidence_text: str,
     evidence_path: str,
 ):
     s_name_n = norm_txt(student_name)
@@ -441,6 +427,7 @@ def add_behavior_record(
                 "points": int(applied),
                 "date": str(rec_date),
                 "observer_name": display_txt(observer_name),
+                "evidence_text": str(evidence_text or "").strip(),
                 "evidence_file": evidence_path.strip(),
             }
         ]
@@ -449,8 +436,11 @@ def add_behavior_record(
     raw_df = (
         pd.read_csv(RECORDS_FILE, dtype=str).fillna("")
         if os.path.exists(RECORDS_FILE)
-        else pd.DataFrame()
+        else pd.DataFrame(columns=RECORD_COLS)
     )
+    for col in RECORD_COLS:
+        if col not in raw_df.columns:
+            raw_df[col] = ""
     combined = pd.concat([raw_df, new_rec], ignore_index=True)
     save_records_df(combined)
     return applied, new_total
@@ -467,11 +457,7 @@ def delete_record_by_id(record_id: str):
 def build_backup_json() -> bytes:
     ensure_storage()
     s_df = load_students_df()
-    r_df = (
-        pd.read_csv(RECORDS_FILE, dtype=str).fillna("")
-        if os.path.exists(RECORDS_FILE)
-        else pd.DataFrame()
-    )
+    r_df = load_records_df()
 
     files_b64 = dict(
         {k: base64.b64encode(v).decode("utf-8") for k, v in st.session_state.mem_uploads.items()}
@@ -563,6 +549,7 @@ def build_summary_excel(students_df: pd.DataFrame, records_df: pd.DataFrame) -> 
                     "points": "الدرجة الممنوحة",
                     "date": "التاريخ",
                     "observer_name": "الراصد",
+                    "evidence_text": "نص الشاهد",
                     "evidence_file": "ملف الشاهد",
                 }
             )
@@ -740,6 +727,18 @@ st.markdown(
         font-size: 0.83rem;
         color: #4e6059;
         font-weight: 600;
+    }}
+
+    .rec-note {{
+        background: #ffffff;
+        border: 1px dashed #c59b27;
+        border-radius: 10px;
+        padding: 8px 12px;
+        margin-top: 8px;
+        color: #132620;
+        font-size: 0.92rem;
+        line-height: 1.6;
+        white-space: pre-wrap;
     }}
 
     [data-testid="stExpander"] {{
@@ -951,8 +950,13 @@ elif page == "رصد السلوك والشواهد":
                 observer_input = st.text_input("اسم الراصد:")
             with c2:
                 rec_date_input = st.date_input("التاريخ:", value=date.today())
+                evidence_text_input = st.text_area(
+                    "إضافة نص شاهد (اختياري):",
+                    placeholder="اكتب وصف الشاهد أو المبادرة أو الملاحظة هنا...",
+                    height=95,
+                )
                 evidence_file = st.file_uploader(
-                    "إرفاق شاهد (صورة / فيديو / PDF):",
+                    "إرفاق ملف شاهد (صورة / فيديو / PDF):",
                     type=["png", "jpg", "jpeg", "webp", "mp4", "mov", "pdf"],
                 )
 
@@ -983,6 +987,7 @@ elif page == "رصد السلوك والشواهد":
                         points=auto_pts,
                         rec_date=str(rec_date_input),
                         observer_name=observer_input,
+                        evidence_text=evidence_text_input,
                         evidence_path=saved_rel_path,
                     )
                     st.success(
@@ -1077,6 +1082,12 @@ elif page == "بطاقات الطالبات والواتساب":
                     for idx_r, (_, rec) in enumerate(s_recs.iterrows()):
                         rec_num = total_recs - idx_r
                         rec_pts = int(pd.to_numeric(rec.get("points", 0), errors="coerce") or 0)
+                        ev_txt = str(rec.get("evidence_text", "") or "").strip()
+                        note_html = (
+                            f'<div class="rec-note"><strong>نص الشاهد:</strong><br>{ev_txt}</div>'
+                            if ev_txt
+                            else ""
+                        )
                         st.markdown(
                             f"""
                             <div class="rec-card">
@@ -1084,6 +1095,7 @@ elif page == "بطاقات الطالبات والواتساب":
                                 <div class="rec-sub">
                                     الدرجة الممنوحة: {rec_pts} درجات • التاريخ: {rec['date']} • الراصد: {rec['observer_name']}
                                 </div>
+                                {note_html}
                             </div>
                             """,
                             unsafe_allow_html=True,
