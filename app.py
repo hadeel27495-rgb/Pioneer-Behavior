@@ -53,9 +53,6 @@ BEHAVIOR_RULES = {
 if "mem_uploads" not in st.session_state:
     st.session_state.mem_uploads = {}
 
-if "open_cards" not in st.session_state:
-    st.session_state.open_cards = {}
-
 
 def norm_txt(val) -> str:
     s = str(val or "").strip()
@@ -712,34 +709,15 @@ st.markdown(
         font-weight: 700;
     }}
 
-    .dossier-card {{
+    .behavior-preview {{
         background: #ffffff;
         border: 1px solid #dcd9ce;
-        border-top: 4px solid #0f4c3a;
         border-right: 4px solid #c59b27;
-        border-radius: 16px;
-        padding: 14px 16px;
-        margin-top: 14px;
-        margin-bottom: 8px;
-        box-shadow: 0 4px 14px rgba(15, 76, 58, 0.07);
-    }}
-
-    .dossier-title {{
-        font-size: 1.12rem;
-        font-weight: 800;
-        color: #0f4c3a;
-        margin: 0 0 6px 0;
-    }}
-
-    .dossier-meta {{
-        font-size: 0.88rem;
-        color: #3e5049;
+        border-radius: 12px;
+        padding: 10px 14px;
+        margin: 8px 0 12px 0;
+        color: #132620;
         font-weight: 700;
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        align-items: center;
-        gap: 8px;
     }}
 
     .rec-card {{
@@ -762,6 +740,22 @@ st.markdown(
         font-size: 0.83rem;
         color: #4e6059;
         font-weight: 600;
+    }}
+
+    [data-testid="stExpander"] {{
+        background: #ffffff !important;
+        border: 1px solid #dcd9ce !important;
+        border-right: 4px solid #c59b27 !important;
+        border-radius: 14px !important;
+        margin-top: 10px !important;
+        margin-bottom: 10px !important;
+        box-shadow: 0 3px 10px rgba(15, 76, 58, 0.05) !important;
+    }}
+
+    [data-testid="stExpander"] summary {{
+        font-weight: 800 !important;
+        color: #0f4c3a !important;
+        font-size: 1rem !important;
     }}
 </style>
 """,
@@ -932,6 +926,18 @@ elif page == "رصد السلوك والشواهد":
     if f_students.empty:
         st.warning("لا توجد طالبات مسجلات في هذا الصف حالياً.")
     else:
+        chosen_behavior = st.selectbox("نوع السلوك:", list(BEHAVIOR_RULES.keys()))
+        auto_pts = int(BEHAVIOR_RULES[chosen_behavior])
+        st.markdown(
+            f"""
+            <div class="behavior-preview">
+                السلوك المحدد: <span style="color:#0f4c3a;">{chosen_behavior}</span>
+                • الدرجة المقررة: <span class="cap-badge">{auto_pts} درجات</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
         class_students_list = sorted(f_students["name"].apply(display_txt).unique().tolist())
         with st.form("record_behavior_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
@@ -944,11 +950,6 @@ elif page == "رصد السلوك والشواهد":
                 wa_input = st.text_input("رقم الواتساب:", value=default_wa)
                 observer_input = st.text_input("اسم الراصد:")
             with c2:
-                chosen_behavior = st.selectbox("نوع السلوك:", list(BEHAVIOR_RULES.keys()))
-                auto_pts = int(BEHAVIOR_RULES[chosen_behavior])
-                st.caption(
-                    f"الدرجة المقررة: {auto_pts} • الحد الأقصى لكل طالبة: {MAX_POINTS} درجة"
-                )
                 rec_date_input = st.date_input("التاريخ:", value=date.today())
                 evidence_file = st.file_uploader(
                     "إرفاق شاهد (صورة / فيديو / PDF):",
@@ -985,7 +986,7 @@ elif page == "رصد السلوك والشواهد":
                         evidence_path=saved_rel_path,
                     )
                     st.success(
-                        f"تم اعتماد ({applied}) درجة. الرصيد الحالي للطالبة: ({new_total} / {MAX_POINTS})."
+                        f"تم اعتماد ({applied}) درجة للسلوك ({chosen_behavior}). الرصيد الحالي للطالبة: ({new_total} / {MAX_POINTS})."
                     )
                     st.rerun()
 
@@ -1036,11 +1037,6 @@ elif page == "بطاقات الطالبات والواتساب":
             pts_val = student_totals.get(key, 0)
             cnt_val = student_counts.get(key, 0)
 
-            if card_key not in st.session_state.open_cards:
-                st.session_state.open_cards[card_key] = True
-
-            is_open = st.session_state.open_cards[card_key]
-
             s_recs = (
                 records_df[
                     (records_df["student_name"].apply(norm_txt) == key[0])
@@ -1054,25 +1050,11 @@ elif page == "بطاقات الطالبات والواتساب":
             )
             wa_url = build_whatsapp_link(s_wa, s_name, s_class, latest_behavior, pts_val)
 
-            st.markdown(
-                f"""
-                <div class="dossier-card">
-                    <div class="dossier-title">سجل أعمال ومتميزات الطالبة: {s_name}</div>
-                    <div class="dossier-meta">
-                        <span>الصف: {s_class} • الشواهد: {cnt_val}</span>
-                        <span class="cap-badge">المجموع التراكمي: {pts_val} / {MAX_POINTS} درجة</span>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            exp_label = (
+                f"سجل أعمال ومتميزات الطالبة: {s_name}  |  الصف: {s_class}  |  "
+                f"{pts_val} / {MAX_POINTS} درجة ({cnt_val} شاهد)"
             )
-
-            toggle_label = "🔼 إغلاق البطاقة" if is_open else "🔽 فتح البطاقة"
-            if st.button(toggle_label, key=f"toggle_card_{idx_c}_{card_key}", use_container_width=True):
-                st.session_state.open_cards[card_key] = not is_open
-                st.rerun()
-
-            if is_open:
+            with st.expander(exp_label, expanded=False):
                 c_wa1, c_wa2, c_wa3 = st.columns([2.2, 1.3, 2.0])
                 with c_wa1:
                     new_wa_val = st.text_input(
@@ -1131,6 +1113,8 @@ elif page == "بطاقات الطالبات والواتساب":
                         if st.button("حذف هذا السجل", key=f"del_rec_{rec['record_id']}_{idx_r}"):
                             delete_record_by_id(str(rec["record_id"]))
                             st.rerun()
+                else:
+                    st.info("لا توجد شواهد مسجلة لهذه الطالبة حتى الآن.")
 
 elif page == "التقارير والنسخ الاحتياطي":
     st.markdown("### التقارير والنسخ الاحتياطي")
