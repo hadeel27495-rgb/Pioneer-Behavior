@@ -2,6 +2,7 @@ import os
 import io
 import json
 import base64
+import mimetypes
 import urllib.parse
 from datetime import date
 import pandas as pd
@@ -69,6 +70,21 @@ def find_hero_image() -> str:
                     if not fname.lower().startswith(("app", "test")):
                         return fpath
     return ""
+
+
+def image_to_data_uri(img_path: str) -> str:
+    if not img_path or not os.path.exists(img_path):
+        return ""
+    mime, _ = mimetypes.guess_type(img_path)
+    if not mime:
+        ext = os.path.splitext(img_path)[1].lower()
+        mime = "image/png" if ext == ".png" else "image/jpeg"
+    try:
+        with open(img_path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("utf-8")
+        return f"data:{mime};base64,{b64}"
+    except Exception:
+        return ""
 
 
 def ensure_storage():
@@ -604,79 +620,108 @@ def generate_student_pdf(
     return buf.getvalue()
 
 
-st.markdown(
-    """
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800&display=swap');
+ensure_storage()
 
-    html, body, [class*="css"] {
-        font-family: 'Cairo', sans-serif;
-        direction: RTL;
-        text-align: right;
+if "nav_page" not in st.session_state:
+    st.session_state.nav_page = "الواجهة الرئيسية"
+
+if "menu_open" not in st.session_state:
+    st.session_state.menu_open = False
+
+is_home = st.session_state.nav_page == "الواجهة الرئيسية"
+hero_path = find_hero_image()
+hero_uri = image_to_data_uri(hero_path) if is_home else ""
+
+if is_home and hero_uri:
+    bg_rule = f"""
+    .stApp {{
+        background-image: url("{hero_uri}");
+        background-size: cover;
+        background-position: center top;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
         color: #132620;
-    }
-
+    }}
+    """
+else:
+    bg_rule = """
     .stApp {
         background: #f6f5ef;
         color: #132620;
     }
+    """
 
-    /* إظهار جميع التسميات والنصوص بوضوح فوق الخلفية الفاتحة */
-    label, .stSelectbox label, .stTextInput label, .stDateInput label, .stFileUploader label,
-    h1, h2, h3, h4, p, span, div {
+card_bg = "rgba(255, 255, 255, 0.88)" if (is_home and hero_uri) else "#ffffff"
+
+st.markdown(
+    f"""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800&display=swap');
+
+    html, body, [class*="css"] {{
+        font-family: 'Cairo', sans-serif;
+        direction: RTL;
+        text-align: right;
         color: #132620;
-    }
+    }}
 
-    /* تنسيق جميع الأزرار بألوان واضحة متناسقة مع الهوية السعودية */
-    .stButton > button, .stDownloadButton > button, .stLinkButton > a {
+    {bg_rule}
+
+    label, .stSelectbox label, .stTextInput label, .stDateInput label, .stFileUploader label,
+    h1, h2, h3, h4, p, span, div {{
+        color: #132620;
+    }}
+
+    .stButton > button, .stDownloadButton > button, .stLinkButton > a {{
         background-color: #0f4c3a !important;
         color: #ffffff !important;
-        border: 1px solid #0b3a2c !important;
+        border: 1px solid #c59b27 !important;
         border-radius: 12px !important;
         font-weight: 700 !important;
         padding: 0.55rem 1rem !important;
-        box-shadow: 0 2px 6px rgba(15, 76, 58, 0.14) !important;
-    }
+        box-shadow: 0 3px 10px rgba(15, 76, 58, 0.2) !important;
+    }}
 
     .stButton > button p, .stDownloadButton > button p, .stLinkButton > a p,
-    .stButton > button span, .stDownloadButton > button span, .stLinkButton > a span {
+    .stButton > button span, .stDownloadButton > button span, .stLinkButton > a span {{
         color: #ffffff !important;
-    }
+    }}
 
-    .stButton > button:hover, .stDownloadButton > button:hover, .stLinkButton > a:hover {
+    .stButton > button:hover, .stDownloadButton > button:hover, .stLinkButton > a:hover {{
         background-color: #16664f !important;
-        border-color: #c59b27 !important;
-    }
+        border-color: #e6c567 !important;
+    }}
 
-    /* بطاقة الهيدر العلوية */
-    .brand-card {
-        background: #ffffff;
-        border: 1px solid #dcd9ce;
+    .brand-card {{
+        background: {card_bg};
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(197, 155, 39, 0.45);
         border-right: 5px solid #0f4c3a;
         border-radius: 14px;
         padding: 12px 16px;
         margin-bottom: 10px;
-        box-shadow: 0 3px 10px rgba(15, 76, 58, 0.06);
+        box-shadow: 0 4px 14px rgba(15, 76, 58, 0.1);
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 10px;
-    }
+    }}
 
-    .brand-name {
+    .brand-name {{
         font-size: 1.15rem;
         font-weight: 800;
         color: #0f4c3a !important;
         margin: 0;
-    }
+    }}
 
-    .brand-desc {
+    .brand-desc {{
         font-size: 0.82rem;
-        color: #55665f !important;
+        color: #465850 !important;
         margin: 2px 0 0 0;
-    }
+    }}
 
-    .cap-badge {
+    .cap-badge {{
         background: #fdf6e2;
         color: #8a640b !important;
         border: 1px solid #dfc067;
@@ -685,53 +730,42 @@ st.markdown(
         font-size: 0.82rem;
         font-weight: 800;
         white-space: nowrap;
-    }
+    }}
 
-    /* بطاقات الإحصائيات */
-    .kpi-grid {
+    .kpi-grid {{
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 10px;
         margin: 12px 0;
-    }
+    }}
 
-    .kpi-item {
-        background: #ffffff;
-        border: 1px solid #dcd9ce;
+    .kpi-item {{
+        background: {card_bg};
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(197, 155, 39, 0.45);
         border-top: 3px solid #c59b27;
         border-radius: 14px;
         padding: 12px 8px;
         text-align: center;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    }
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }}
 
-    .kpi-num {
+    .kpi-num {{
         font-size: 1.5rem;
         font-weight: 800;
         color: #0f4c3a !important;
         line-height: 1.2;
-    }
+    }}
 
-    .kpi-lbl {
+    .kpi-lbl {{
         font-size: 0.78rem;
-        color: #586962 !important;
+        color: #495a53 !important;
         margin-top: 4px;
-        font-weight: 600;
-    }
+        font-weight: 700;
+    }}
 
-    /* إطار صورة الهوية */
-    .hero-wrap {
-        background: #ffffff;
-        border: 1px solid #dcd9ce;
-        border-radius: 16px;
-        padding: 8px;
-        box-shadow: 0 4px 16px rgba(15, 76, 58, 0.07);
-        max-width: 460px;
-        margin: 0 auto 12px auto;
-    }
-
-    /* بطاقة الطالبة */
-    .student-box {
+    .student-box {{
         background: #ffffff;
         border: 1px solid #dcd9ce;
         border-right: 4px solid #c59b27;
@@ -740,19 +774,11 @@ st.markdown(
         margin-top: 12px;
         margin-bottom: 8px;
         box-shadow: 0 2px 8px rgba(15, 76, 58, 0.04);
-    }
+    }}
 </style>
 """,
     unsafe_allow_html=True,
 )
-
-ensure_storage()
-
-if "nav_page" not in st.session_state:
-    st.session_state.nav_page = "الواجهة الرئيسية"
-
-if "menu_open" not in st.session_state:
-    st.session_state.menu_open = False
 
 nav_options = [
     "الواجهة الرئيسية",
@@ -762,7 +788,6 @@ nav_options = [
     "التقارير والنسخ الاحتياطي",
 ]
 
-# الشريط العلوي مع زر ☰ واضح
 st.markdown(
     f"""
     <div class="brand-card">
@@ -790,7 +815,6 @@ if st.session_state.menu_open:
 students_df = load_students_df()
 records_df = load_records_df()
 
-# فلتر مستقل لكل فصل
 all_classes = sorted(
     list(
         set(
@@ -824,8 +848,6 @@ if not records_df.empty:
 page = st.session_state.nav_page
 
 if page == "الواجهة الرئيسية":
-    hero_path = find_hero_image()
-
     total_students_count = (
         len(f_students.drop_duplicates(subset=["name", "classroom"]))
         if not f_students.empty
@@ -879,11 +901,6 @@ if page == "الواجهة الرئيسية":
         if st.button("🪪 بطاقات الطالبات و PDF", use_container_width=True):
             st.session_state.nav_page = "بطاقات الطالبات والواتساب و PDF"
             st.rerun()
-
-    if hero_path:
-        st.markdown('<div class="hero-wrap">', unsafe_allow_html=True)
-        st.image(hero_path, use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
 elif page == "استيراد الطالبات":
     st.markdown("### استيراد الطالبات أو إضافتهن")
