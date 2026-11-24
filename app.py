@@ -609,7 +609,7 @@ if is_home and hero_uri:
         background-size: cover;
         background-position: center top;
         background-repeat: no-repeat;
-        background-attachment: fixed;
+        background-attachment: scroll;
         color: #132620;
     }}
     """
@@ -628,20 +628,23 @@ st.markdown(
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@500;600;700;800&display=swap');
 
-    html, body, [class*="css"] {{
+    html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {{
         font-family: 'Cairo', sans-serif;
         direction: RTL;
         text-align: right;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        touch-action: pan-y !important;
     }}
 
     {bg_rule}
 
     @keyframes titleFloat {{
         0%, 100% {{
-            transform: translateY(0px) scale(1);
+            transform: translateY(0px);
         }}
         50% {{
-            transform: translateY(-3px) scale(1.015);
+            transform: translateY(-2px);
         }}
     }}
 
@@ -679,7 +682,7 @@ st.markdown(
     }}
 
     .brand-animated {{
-        animation: titleFloat 3.2s ease-in-out infinite;
+        animation: titleFloat 3.6s ease-in-out infinite;
     }}
 
     .brand-name {{
