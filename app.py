@@ -50,8 +50,17 @@ BEHAVIOR_RULES = {
     "متميز": 4,
 }
 
+if "mem_uploads" not in st.session_state:
+    st.session_state.mem_uploads = {}
+
 
 def norm_txt(val) -> str:
+    s = str(val or "").strip()
+    s = s.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ة", "ه").replace("ى", "ي")
+    return " ".join(s.split())
+
+
+def display_txt(val) -> str:
     return " ".join(str(val or "").strip().split())
 
 
@@ -87,17 +96,35 @@ def image_to_data_uri(img_path: str) -> str:
         return ""
 
 
-def resolve_evidence_path(raw_path: str) -> str:
+def get_evidence_media(raw_path: str):
     p = str(raw_path or "").strip()
-    if not p:
-        return ""
-    if os.path.exists(p) and os.path.isfile(p):
-        return p
-    base = os.path.basename(p)
-    cand = os.path.join(UPLOAD_DIR, base)
-    if os.path.exists(cand) and os.path.isfile(cand):
-        return cand
-    return ""
+    base = os.path.basename(p) if p else ""
+
+    if base and base in st.session_state.mem_uploads:
+        return base, st.session_state.mem_uploads[base]
+
+    if p and os.path.exists(p) and os.path.isfile(p):
+        try:
+            with open(p, "rb") as f:
+                data = f.read()
+            if base:
+                st.session_state.mem_uploads[base] = data
+            return base or p, data
+        except Exception:
+            pass
+
+    if base:
+        cand = os.path.join(UPLOAD_DIR, base)
+        if os.path.exists(cand) and os.path.isfile(cand):
+            try:
+                with open(cand, "rb") as f:
+                    data = f.read()
+                st.session_state.mem_uploads[base] = data
+                return base, data
+            except Exception:
+                pass
+
+    return "", None
 
 
 def ensure_storage():
@@ -134,8 +161,8 @@ def load_students_df() -> pd.DataFrame:
     for col in ["name", "classroom", "whatsapp"]:
         if col not in df.columns:
             df[col] = ""
-    df["name"] = df["name"].apply(norm_txt)
-    df["classroom"] = df["classroom"].apply(norm_txt)
+    df["name"] = df["name"].apply(display_txt)
+    df["classroom"] = df["classroom"].apply(display_txt)
     df["whatsapp"] = df["whatsapp"].astype(str).str.strip()
     df = df[(df["name"] != "") & (df["classroom"] != "")].drop_duplicates(
         subset=["name", "classroom"], keep="last"
@@ -149,8 +176,8 @@ def save_students_df(df: pd.DataFrame):
     for col in ["name", "classroom", "whatsapp"]:
         if col not in clean_df.columns:
             clean_df[col] = ""
-    clean_df["name"] = clean_df["name"].apply(norm_txt)
-    clean_df["classroom"] = clean_df["classroom"].apply(norm_txt)
+    clean_df["name"] = clean_df["name"].apply(display_txt)
+    clean_df["classroom"] = clean_df["classroom"].apply(display_txt)
     clean_df["whatsapp"] = clean_df["whatsapp"].astype(str).str.strip()
     clean_df = clean_df[(clean_df["name"] != "") & (clean_df["classroom"] != "")].drop_duplicates(
         subset=["name", "classroom"], keep="last"
@@ -191,12 +218,12 @@ def load_records_df() -> pd.DataFrame:
         if col not in df.columns:
             df[col] = ""
     df["points"] = pd.to_numeric(df["points"], errors="coerce").fillna(0).astype(int)
-    df["student_name"] = df["student_name"].apply(norm_txt)
-    df["classroom"] = df["classroom"].apply(norm_txt)
+    df["student_name"] = df["student_name"].apply(display_txt)
+    df["classroom"] = df["classroom"].apply(display_txt)
     df["whatsapp"] = df["whatsapp"].astype(str).str.strip()
-    df["behavior"] = df["behavior"].apply(norm_txt)
+    df["behavior"] = df["behavior"].apply(display_txt)
     df["date"] = df["date"].astype(str).str.strip()
-    df["observer_name"] = df["observer_name"].apply(norm_txt)
+    df["observer_name"] = df["observer_name"].apply(display_txt)
     df["evidence_file"] = df["evidence_file"].astype(str).str.strip()
     df = df[(df["student_name"] != "") & (df["classroom"] != "")].reset_index(drop=True)
     if not df.empty and "record_id" in df.columns:
@@ -237,7 +264,7 @@ def build_whatsapp_link(
 
 
 def upsert_students_from_df(df_upload: pd.DataFrame) -> int:
-    cols_map = {norm_txt(c): c for c in df_upload.columns}
+    cols_map = {display_txt(c): c for c in df_upload.columns}
     name_col = (
         cols_map.get("اسم الطالبة")
         or cols_map.get("اسم الطالب")
@@ -263,25 +290,32 @@ def upsert_students_from_df(df_upload: pd.DataFrame) -> int:
 
     current_df = load_students_df()
     existing_map = {
-        (norm_txt(row["name"]), norm_txt(row["classroom"])): str(row["whatsapp"] or "").strip()
+        (norm_txt(row["name"]), norm_txt(row["classroom"])): (
+            display_txt(row["name"]),
+            display_txt(row["classroom"]),
+            str(row["whatsapp"] or "").strip(),
+        )
         for _, row in current_df.iterrows()
     }
 
     added = 0
     for _, row in df_upload.iterrows():
-        s_name = norm_txt(row[name_col])
-        s_class = norm_txt(row[class_col])
+        s_name = display_txt(row[name_col])
+        s_class = display_txt(row[class_col])
         s_wa = str(row[wa_col] or "").strip() if wa_col and pd.notna(row[wa_col]) else ""
         if not s_name or not s_class or s_name.lower() == "nan":
             continue
-        key = (s_name, s_class)
+        key = (norm_txt(s_name), norm_txt(s_class))
         if key not in existing_map:
-            existing_map[key] = s_wa
+            existing_map[key] = (s_name, s_class, s_wa)
             added += 1
-        elif s_wa and not existing_map[key]:
-            existing_map[key] = s_wa
+        else:
+            old_n, old_c, old_w = existing_map[key]
+            existing_map[key] = (old_n, old_c, s_wa if s_wa and not old_w else old_w)
 
-    merged_rows = [{"name": k[0], "classroom": k[1], "whatsapp": v} for k, v in existing_map.items()]
+    merged_rows = [
+        {"name": v[0], "classroom": v[1], "whatsapp": v[2]} for v in existing_map.values()
+    ]
     save_students_df(pd.DataFrame(merged_rows))
     return added
 
@@ -289,7 +323,13 @@ def upsert_students_from_df(df_upload: pd.DataFrame) -> int:
 def add_single_student(name: str, classroom: str, whatsapp: str):
     df = load_students_df()
     new_row = pd.DataFrame(
-        [{"name": norm_txt(name), "classroom": norm_txt(classroom), "whatsapp": whatsapp.strip()}]
+        [
+            {
+                "name": display_txt(name),
+                "classroom": display_txt(classroom),
+                "whatsapp": whatsapp.strip(),
+            }
+        ]
     )
     save_students_df(pd.concat([df, new_row], ignore_index=True))
 
@@ -307,7 +347,18 @@ def update_student_whatsapp(student_name: str, classroom: str, whatsapp: str):
         s_df.loc[mask_s, "whatsapp"] = wa_clean
     else:
         s_df = pd.concat(
-            [s_df, pd.DataFrame([{"name": s_name_n, "classroom": s_class_n, "whatsapp": wa_clean}])],
+            [
+                s_df,
+                pd.DataFrame(
+                    [
+                        {
+                            "name": display_txt(student_name),
+                            "classroom": display_txt(classroom),
+                            "whatsapp": wa_clean,
+                        }
+                    ]
+                ),
+            ],
             ignore_index=True,
         )
     save_students_df(s_df)
@@ -349,7 +400,7 @@ def add_behavior_record(
     new_total = min(MAX_POINTS, existing_pts + applied)
 
     if whatsapp.strip():
-        update_student_whatsapp(s_name_n, s_class_n, whatsapp.strip())
+        update_student_whatsapp(student_name, classroom, whatsapp.strip())
 
     next_id = 1
     if not r_df.empty and "record_id" in r_df.columns:
@@ -361,13 +412,13 @@ def add_behavior_record(
         [
             {
                 "record_id": str(next_id),
-                "student_name": s_name_n,
-                "classroom": s_class_n,
+                "student_name": display_txt(student_name),
+                "classroom": display_txt(classroom),
                 "whatsapp": whatsapp.strip(),
-                "behavior": norm_txt(behavior),
+                "behavior": display_txt(behavior),
                 "points": int(applied),
                 "date": str(rec_date),
-                "observer_name": norm_txt(observer_name),
+                "observer_name": display_txt(observer_name),
                 "evidence_file": evidence_path.strip(),
             }
         ]
@@ -400,11 +451,13 @@ def build_backup_json() -> bytes:
         else pd.DataFrame()
     )
 
-    files_b64 = {}
+    files_b64 = dict(
+        {k: base64.b64encode(v).decode("utf-8") for k, v in st.session_state.mem_uploads.items()}
+    )
     if os.path.exists(UPLOAD_DIR):
         for fname in os.listdir(UPLOAD_DIR):
             fpath = os.path.join(UPLOAD_DIR, fname)
-            if os.path.isfile(fpath):
+            if os.path.isfile(fpath) and fname not in files_b64:
                 with open(fpath, "rb") as f:
                     files_b64[fname] = base64.b64encode(f.read()).decode("utf-8")
 
@@ -431,9 +484,11 @@ def restore_backup_json(uploaded_json_file):
 
     for fname, b64_content in files_dict.items():
         safe_name = os.path.basename(fname)
+        raw_bytes = base64.b64decode(b64_content)
+        st.session_state.mem_uploads[safe_name] = raw_bytes
         target_path = os.path.join(UPLOAD_DIR, safe_name)
         with open(target_path, "wb") as f:
-            f.write(base64.b64decode(b64_content))
+            f.write(raw_bytes)
 
 
 def build_summary_excel(students_df: pd.DataFrame, records_df: pd.DataFrame) -> bytes:
@@ -457,10 +512,10 @@ def build_summary_excel(students_df: pd.DataFrame, records_df: pd.DataFrame) -> 
     if not students_df.empty:
         dedup_students = students_df.drop_duplicates(subset=["name", "classroom"])
         for _, s in dedup_students.iterrows():
-            s_name = norm_txt(s["name"])
-            s_class = norm_txt(s["classroom"])
+            s_name = display_txt(s["name"])
+            s_class = display_txt(s["classroom"])
             s_wa = str(s.get("whatsapp", "") or "").strip()
-            key = (s_name, s_class)
+            key = (norm_txt(s_name), norm_txt(s_class))
             rows.append(
                 {
                     "اسم الطالبة": s_name,
@@ -632,23 +687,56 @@ st.markdown(
         font-weight: 700;
     }}
 
-    .student-box {{
+    .dossier-card {{
         background: #ffffff;
         border: 1px solid #dcd9ce;
+        border-top: 4px solid #0f4c3a;
         border-right: 4px solid #c59b27;
-        border-radius: 14px;
-        padding: 12px 14px;
+        border-radius: 16px;
+        padding: 14px 16px;
         margin-top: 14px;
         margin-bottom: 8px;
-        box-shadow: 0 2px 8px rgba(15, 76, 58, 0.04);
+        box-shadow: 0 4px 14px rgba(15, 76, 58, 0.07);
     }}
 
-    .rec-item-box {{
-        background: #faf9f4;
-        border: 1px solid #e6e2d3;
-        border-radius: 10px;
-        padding: 8px 12px;
-        margin: 6px 0;
+    .dossier-title {{
+        font-size: 1.12rem;
+        font-weight: 800;
+        color: #0f4c3a;
+        margin: 0 0 6px 0;
+    }}
+
+    .dossier-meta {{
+        font-size: 0.88rem;
+        color: #3e5049;
+        font-weight: 700;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }}
+
+    .rec-card {{
+        background: #fbfaf5;
+        border: 1px solid #e3decb;
+        border-right: 4px solid #0f4c3a;
+        border-radius: 12px;
+        padding: 10px 12px;
+        margin: 8px 0 6px 0;
+    }}
+
+    .rec-head {{
+        font-size: 0.98rem;
+        font-weight: 800;
+        color: #132620;
+        margin-bottom: 4px;
+    }}
+
+    .rec-sub {{
+        font-size: 0.83rem;
+        color: #4e6059;
+        font-weight: 600;
     }}
 </style>
 """,
@@ -694,14 +782,14 @@ all_classes = sorted(
     list(
         set(
             [
-                norm_txt(c)
+                display_txt(c)
                 for c in (students_df["classroom"].tolist() if not students_df.empty else [])
-                if norm_txt(c)
+                if display_txt(c)
             ]
             + [
-                norm_txt(c)
+                display_txt(c)
                 for c in (records_df["classroom"].tolist() if not records_df.empty else [])
-                if norm_txt(c)
+                if display_txt(c)
             ]
         )
     )
@@ -819,7 +907,7 @@ elif page == "رصد السلوك والشواهد":
     if f_students.empty:
         st.warning("لا توجد طالبات مسجلات في هذا الفصل حالياً.")
     else:
-        class_students_list = sorted(f_students["name"].apply(norm_txt).unique().tolist())
+        class_students_list = sorted(f_students["name"].apply(display_txt).unique().tolist())
         with st.form("record_behavior_form", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
@@ -848,16 +936,22 @@ elif page == "رصد السلوك والشواهد":
                 else:
                     saved_rel_path = ""
                     if evidence_file is not None:
-                        safe_filename = f"{norm_txt(chosen_student)}_{rec_date_input}_{evidence_file.name}".replace(
-                            " ", "_"
+                        file_bytes = evidence_file.getvalue()
+                        safe_filename = (
+                            f"{norm_txt(chosen_student)}_{rec_date_input}_{evidence_file.name}"
+                            .replace(" ", "_")
                         )
+                        st.session_state.mem_uploads[safe_filename] = file_bytes
                         saved_rel_path = os.path.join(UPLOAD_DIR, safe_filename)
-                        with open(saved_rel_path, "wb") as f_out:
-                            f_out.write(evidence_file.getbuffer())
+                        try:
+                            with open(saved_rel_path, "wb") as f_out:
+                                f_out.write(file_bytes)
+                        except Exception:
+                            pass
 
                     applied, new_total = add_behavior_record(
                         student_name=chosen_student,
-                        classroom=norm_txt(student_row["classroom"]),
+                        classroom=display_txt(student_row["classroom"]),
                         whatsapp=wa_input,
                         behavior=chosen_behavior,
                         points=auto_pts,
@@ -879,24 +973,26 @@ elif page == "بطاقات الطالبات والواتساب":
 
     if not f_students.empty:
         for _, s_row in f_students.drop_duplicates(subset=["name", "classroom"]).iterrows():
-            sn = norm_txt(s_row["name"])
-            sc = norm_txt(s_row["classroom"])
+            sn_disp = display_txt(s_row["name"])
+            sc_disp = display_txt(s_row["classroom"])
             sw = str(s_row.get("whatsapp", "") or "").strip()
-            if (sn, sc) not in seen_entries:
-                seen_entries.add((sn, sc))
-                card_entries.append({"name": sn, "classroom": sc, "whatsapp": sw})
+            k = (norm_txt(sn_disp), norm_txt(sc_disp))
+            if k not in seen_entries:
+                seen_entries.add(k)
+                card_entries.append({"name": sn_disp, "classroom": sc_disp, "whatsapp": sw})
 
     if not f_records.empty:
         for _, r_row in f_records.drop_duplicates(subset=["student_name", "classroom"]).iterrows():
-            sn = norm_txt(r_row["student_name"])
-            sc = norm_txt(r_row["classroom"])
+            sn_disp = display_txt(r_row["student_name"])
+            sc_disp = display_txt(r_row["classroom"])
             sw = str(r_row.get("whatsapp", "") or "").strip()
-            if (sn, sc) not in seen_entries:
-                seen_entries.add((sn, sc))
-                card_entries.append({"name": sn, "classroom": sc, "whatsapp": sw})
+            k = (norm_txt(sn_disp), norm_txt(sc_disp))
+            if k not in seen_entries:
+                seen_entries.add(k)
+                card_entries.append({"name": sn_disp, "classroom": sc_disp, "whatsapp": sw})
 
     if search_q.strip():
-        q = norm_txt(search_q).lower()
+        q = display_txt(search_q).lower()
         card_entries = [
             item
             for item in card_entries
@@ -910,32 +1006,30 @@ elif page == "بطاقات الطالبات والواتساب":
             s_name = item["name"]
             s_class = item["classroom"]
             s_wa = item["whatsapp"]
-            key = (s_name, s_class)
+            key = (norm_txt(s_name), norm_txt(s_class))
             pts_val = student_totals.get(key, 0)
             cnt_val = student_counts.get(key, 0)
 
             s_recs = (
                 records_df[
-                    (records_df["student_name"].apply(norm_txt) == s_name)
-                    & (records_df["classroom"].apply(norm_txt) == s_class)
+                    (records_df["student_name"].apply(norm_txt) == norm_txt(s_name))
+                    & (records_df["classroom"].apply(norm_txt) == norm_txt(s_class))
                 ]
                 if not records_df.empty
                 else pd.DataFrame()
             )
             latest_behavior = (
-                norm_txt(s_recs.iloc[0]["behavior"]) if not s_recs.empty else "متميز"
+                display_txt(s_recs.iloc[0]["behavior"]) if not s_recs.empty else "متميز"
             )
             wa_url = build_whatsapp_link(s_wa, s_name, s_class, latest_behavior, pts_val)
 
             st.markdown(
                 f"""
-                <div class="student-box">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-                        <div>
-                            <strong style="font-size:1.05rem; color:#132620;">{s_name}</strong>
-                            <span style="color:#5d7068; margin-right:8px;">الفصل: {s_class}</span>
-                        </div>
-                        <span class="cap-badge">{pts_val} / {MAX_POINTS} درجة • {cnt_val} شاهد</span>
+                <div class="dossier-card">
+                    <div class="dossier-title">سجل أعمال ومتميزات الطالبة: {s_name}</div>
+                    <div class="dossier-meta">
+                        <span>الفصل: {s_class} • الشواهد: {cnt_val}</span>
+                        <span class="cap-badge">المجموع التراكمي: {pts_val} / {MAX_POINTS} درجة</span>
                     </div>
                 </div>
                 """,
@@ -960,30 +1054,44 @@ elif page == "بطاقات الطالبات والواتساب":
                 st.link_button("إرسال واتساب", wa_url, use_container_width=True)
 
             if not s_recs.empty:
-                for _, rec in s_recs.iterrows():
+                total_recs = len(s_recs)
+                for idx_r, (_, rec) in enumerate(s_recs.iterrows()):
+                    rec_num = total_recs - idx_r
                     rec_pts = int(pd.to_numeric(rec.get("points", 0), errors="coerce") or 0)
                     st.markdown(
                         f"""
-                        <div class="rec-item-box">
-                            <strong>{rec['behavior']}</strong>
-                            <span style="color:#0f4c3a; font-weight:800;"> (+{rec_pts} درجة)</span>
-                            <div style="font-size:0.82rem; color:#52635c; margin-top:2px;">
-                                التاريخ: {rec['date']} • الراصد: {rec['observer_name']}
+                        <div class="rec-card">
+                            <div class="rec-head">رصد رقم ({rec_num}) - {rec['behavior']}</div>
+                            <div class="rec-sub">
+                                الدرجة الممنوحة: {rec_pts} درجات • التاريخ: {rec['date']} • الراصد: {rec['observer_name']}
                             </div>
                         </div>
                         """,
                         unsafe_allow_html=True,
                     )
 
-                    ev_real_path = resolve_evidence_path(rec.get("evidence_file", ""))
-                    if ev_real_path:
-                        lower_p = ev_real_path.lower()
-                        if lower_p.endswith((".png", ".jpg", ".jpeg", ".webp")):
-                            st.image(ev_real_path, caption=f"شاهد: {rec['behavior']}", width=260)
-                        elif lower_p.endswith((".mp4", ".mov")):
-                            st.video(ev_real_path)
+                    ev_name, ev_bytes = get_evidence_media(rec.get("evidence_file", ""))
+                    if ev_bytes:
+                        lower_n = ev_name.lower()
+                        if lower_n.endswith((".png", ".jpg", ".jpeg", ".webp")):
+                            st.image(
+                                ev_bytes,
+                                caption=f"شاهد رصد رقم ({rec_num}): {rec['behavior']}",
+                                use_container_width=True,
+                            )
+                        elif lower_n.endswith((".mp4", ".mov")):
+                            st.video(ev_bytes)
+                        elif lower_n.endswith(".pdf"):
+                            st.download_button(
+                                label=f"فتح / تحميل ملف الشاهد ({ev_name})",
+                                data=ev_bytes,
+                                file_name=ev_name,
+                                mime="application/pdf",
+                                key=f"ev_dl_{rec['record_id']}_{idx_r}",
+                                use_container_width=True,
+                            )
 
-                    if st.button("حذف هذا السجل", key=f"del_rec_{rec['record_id']}"):
+                    if st.button("حذف هذا السجل", key=f"del_rec_{rec['record_id']}_{idx_r}"):
                         delete_record_by_id(str(rec["record_id"]))
                         st.rerun()
 
