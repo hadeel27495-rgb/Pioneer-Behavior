@@ -622,6 +622,30 @@ else:
     """
 
 card_bg = "rgba(255, 255, 255, 0.90)" if (is_home and hero_uri) else "#ffffff"
+elastic_css = (
+    """
+    @keyframes rubberPeek {
+        0%, 100% {
+            transform: translateY(0px);
+        }
+        45% {
+            transform: translateY(-7px);
+        }
+        72% {
+            transform: translateY(2px);
+        }
+    }
+
+    .home-elastic-wrap .brand-card,
+    .home-elastic-wrap .kpi-grid,
+    .home-elastic-wrap .stButton > button {
+        animation: rubberPeek 4.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+        will-change: transform;
+    }
+    """
+    if is_home
+    else ""
+)
 
 st.markdown(
     f"""
@@ -638,15 +662,7 @@ st.markdown(
     }}
 
     {bg_rule}
-
-    @keyframes titleFloat {{
-        0%, 100% {{
-            transform: translateY(0px);
-        }}
-        50% {{
-            transform: translateY(-2px);
-        }}
-    }}
+    {elastic_css}
 
     .stButton > button, .stDownloadButton > button, .stLinkButton > a {{
         background-color: #0f4c3a !important;
@@ -679,10 +695,6 @@ st.markdown(
         margin-bottom: 10px;
         box-shadow: 0 4px 14px rgba(15, 76, 58, 0.1);
         text-align: center;
-    }}
-
-    .brand-animated {{
-        animation: titleFloat 3.6s ease-in-out infinite;
     }}
 
     .brand-name {{
@@ -809,13 +821,14 @@ nav_options = [
     "التقارير والنسخ الاحتياطي",
 ]
 
+if is_home:
+    st.markdown('<div class="home-elastic-wrap">', unsafe_allow_html=True)
+
 st.markdown(
     f"""
     <div class="brand-card">
-        <div class="brand-animated">
-            <p class="brand-name">السلوك المتميز</p>
-            <p class="brand-desc">{SCHOOL_NAME}</p>
-        </div>
+        <p class="brand-name">السلوك المتميز</p>
+        <p class="brand-desc">{SCHOOL_NAME}</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -1232,3 +1245,6 @@ elif page == "التقارير والنسخ الاحتياطي":
         st.dataframe(f_records, use_container_width=True)
     else:
         st.info("لا توجد سجلات رصد في هذا الصف حالياً.")
+
+if is_home:
+    st.markdown("</div>", unsafe_allow_html=True)
