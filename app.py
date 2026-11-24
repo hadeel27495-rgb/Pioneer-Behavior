@@ -53,10 +53,19 @@ BEHAVIOR_RULES = {
 if "mem_uploads" not in st.session_state:
     st.session_state.mem_uploads = {}
 
+if "open_cards" not in st.session_state:
+    st.session_state.open_cards = {}
+
 
 def norm_txt(val) -> str:
     s = str(val or "").strip()
-    s = s.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ة", "ه").replace("ى", "ي")
+    s = (
+        s.replace("أ", "ا")
+        .replace("إ", "ا")
+        .replace("آ", "ا")
+        .replace("ة", "ه")
+        .replace("ى", "ي")
+    )
     return " ".join(s.split())
 
 
@@ -249,13 +258,29 @@ def build_whatsapp_link(
     phone: str, student_name: str, classroom: str, behavior: str, total_points: int
 ) -> str:
     clean = clean_phone(phone)
+    current_pts = min(max(int(total_points), 0), MAX_POINTS)
+    remaining_pts = max(0, MAX_POINTS - current_pts)
+
+    if remaining_pts == 0:
+        guidance = (
+            f"ما شاء الله تبارك الله، فقد أتمّت الدرجة الكاملة ({MAX_POINTS} / {MAX_POINTS}) في السلوك المتميز، "
+            f"ونأمل استمرارها على هذا المستوى المشرف والتميّز الدائم."
+        )
+    else:
+        guidance = (
+            f"حصلت الطالبة حتى الآن على ({current_pts} / {MAX_POINTS}) درجة، "
+            f"ومتبقٍ لها ({remaining_pts}) درجات للوصول إلى الدرجة الكاملة ({MAX_POINTS} / {MAX_POINTS})؛ "
+            f"ونأمل متابعتها وتشجيعها على مواصلة التميز والانضباط وتقديم الشواهد والمبادرات المتميزة "
+            f"لتحقيق الدرجة الكاملة بإذن الله."
+        )
+
     msg = (
         f"السلام عليكم ورحمة الله وبركاته 🌟\n"
-        f"نفيدكم بتميز الطالبة: {student_name}\n"
-        f"الفصل: {classroom}\n"
-        f"مجال التميز: {behavior}\n"
-        f"رصيد نقاط السلوك المتميز الحالي: {min(int(total_points), MAX_POINTS)} / {MAX_POINTS}\n"
-        f"مع تحيات {SCHOOL_NAME}."
+        f"ولي أمر الطالبة الفاضلة: {student_name}\n"
+        f"الصف / الفصل: {classroom}\n"
+        f"أحدث سلوك متميز مرصود: {behavior}\n"
+        f"{guidance}\n"
+        f"مع خالص التقدير من إدارة {SCHOOL_NAME}."
     )
     encoded = urllib.parse.quote(msg)
     if clean:
@@ -266,15 +291,15 @@ def build_whatsapp_link(
 def upsert_students_from_df(df_upload: pd.DataFrame) -> int:
     cols_map = {display_txt(c): c for c in df_upload.columns}
     name_col = (
-        cols_map.get("اسم الطالبة")
+        cols_map.get("الاسم")
+        or cols_map.get("اسم الطالبة")
         or cols_map.get("اسم الطالب")
-        or cols_map.get("الاسم")
         or cols_map.get("name")
     )
     class_col = (
-        cols_map.get("الفصل")
+        cols_map.get("الصف")
+        or cols_map.get("الفصل")
         or cols_map.get("الصف والفصل")
-        or cols_map.get("الصف")
         or cols_map.get("classroom")
     )
     wa_col = (
@@ -286,7 +311,7 @@ def upsert_students_from_df(df_upload: pd.DataFrame) -> int:
     )
 
     if not name_col or not class_col:
-        raise ValueError("يجب أن يحتوي الملف على عمودي (اسم الطالبة) و (الفصل).")
+        raise ValueError("يجب أن يحتوي ملف الإكسل على عمودي (الاسم) و (الصف) فقط.")
 
     current_df = load_students_df()
     existing_map = {
@@ -303,7 +328,7 @@ def upsert_students_from_df(df_upload: pd.DataFrame) -> int:
         s_name = display_txt(row[name_col])
         s_class = display_txt(row[class_col])
         s_wa = str(row[wa_col] or "").strip() if wa_col and pd.notna(row[wa_col]) else ""
-        if not s_name or not s_class or s_name.lower() == "nan":
+        if not s_name or not s_class or s_name.lower() == "nan" or s_class.lower() == "nan":
             continue
         key = (norm_txt(s_name), norm_txt(s_class))
         if key not in existing_map:
@@ -518,8 +543,8 @@ def build_summary_excel(students_df: pd.DataFrame, records_df: pd.DataFrame) -> 
             key = (norm_txt(s_name), norm_txt(s_class))
             rows.append(
                 {
-                    "اسم الطالبة": s_name,
-                    "الفصل": s_class,
+                    "الاسم": s_name,
+                    "الصف": s_class,
                     "رقم الواتساب": s_wa,
                     "عدد الشواهد": cnt_map.get(key, 0),
                     "مجموع الدرجات": pts_map.get(key, 0),
@@ -534,13 +559,13 @@ def build_summary_excel(students_df: pd.DataFrame, records_df: pd.DataFrame) -> 
         if not records_df.empty:
             records_export = records_df.rename(
                 columns={
-                    "student_name": "اسم الطالبة",
-                    "classroom": "الفصل",
+                    "student_name": "الاسم",
+                    "classroom": "الصف",
                     "whatsapp": "رقم الواتساب",
-                    "behavior": "السلوك المتميز",
-                    "points": "الدرجات المضافة",
+                    "behavior": "نوع السلوك",
+                    "points": "الدرجة الممنوحة",
                     "date": "التاريخ",
-                    "observer_name": "اسم الراصد",
+                    "observer_name": "الراصد",
                     "evidence_file": "ملف الشاهد",
                 }
             )
@@ -794,11 +819,11 @@ all_classes = sorted(
         )
     )
 )
-class_options = ["جميع الفصول"] + all_classes
-selected_class = st.selectbox("🏫 اختر الفصل:", class_options)
+class_options = ["جميع الصفوف"] + all_classes
+selected_class = st.selectbox("🏫 اختر الصف:", class_options)
 selected_class_n = norm_txt(selected_class)
 
-if selected_class != "جميع الفصول":
+if selected_class != "جميع الصفوف":
     f_students = students_df[students_df["classroom"].apply(norm_txt) == selected_class_n].copy()
     f_records = records_df[records_df["classroom"].apply(norm_txt) == selected_class_n].copy()
 else:
@@ -869,7 +894,7 @@ if page == "الواجهة الرئيسية":
 elif page == "استيراد الطالبات":
     st.markdown("### استيراد الطالبات أو إضافتهن")
     uploaded_excel = st.file_uploader(
-        "ملف Excel (.xlsx) يحتوي على أعمدة: (اسم الطالبة) و (الفصل) واختيارياً (الواتساب)",
+        "ملف Excel (.xlsx) يحتوي على عمودي (الاسم) و (الصف) فقط",
         type=["xlsx"],
     )
     if uploaded_excel is not None:
@@ -890,13 +915,13 @@ elif page == "استيراد الطالبات":
     with st.form("add_student_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
         with c1:
-            new_name = st.text_input("اسم الطالبة")
+            new_name = st.text_input("الاسم")
         with c2:
             new_class = st.text_input(
-                "الفصل", value="" if selected_class == "جميع الفصول" else selected_class
+                "الصف", value="" if selected_class == "جميع الصفوف" else selected_class
             )
         with c3:
-            new_wa = st.text_input("رقم الواتساب (مثال: 05xxxxxxxx)")
+            new_wa = st.text_input("رقم الواتساب (اختياري - مثال: 05xxxxxxxx)")
         if st.form_submit_button("حفظ الطالبة") and new_name.strip() and new_class.strip():
             add_single_student(new_name, new_class, new_wa)
             st.success("تمت إضافة الطالبة.")
@@ -905,7 +930,7 @@ elif page == "استيراد الطالبات":
 elif page == "رصد السلوك والشواهد":
     st.markdown("### رصد السلوك المتميز والشواهد")
     if f_students.empty:
-        st.warning("لا توجد طالبات مسجلات في هذا الفصل حالياً.")
+        st.warning("لا توجد طالبات مسجلات في هذا الصف حالياً.")
     else:
         class_students_list = sorted(f_students["name"].apply(display_txt).unique().tolist())
         with st.form("record_behavior_form", clear_on_submit=True):
@@ -1000,20 +1025,26 @@ elif page == "بطاقات الطالبات والواتساب":
         ]
 
     if not card_entries:
-        st.info("لا توجد طالبات لعرضهن في هذا الفصل.")
+        st.info("لا توجد طالبات لعرضهن في هذا الصف.")
     else:
-        for item in card_entries:
+        for idx_c, item in enumerate(card_entries):
             s_name = item["name"]
             s_class = item["classroom"]
             s_wa = item["whatsapp"]
             key = (norm_txt(s_name), norm_txt(s_class))
+            card_key = f"{key[0]}__{key[1]}"
             pts_val = student_totals.get(key, 0)
             cnt_val = student_counts.get(key, 0)
 
+            if card_key not in st.session_state.open_cards:
+                st.session_state.open_cards[card_key] = True
+
+            is_open = st.session_state.open_cards[card_key]
+
             s_recs = (
                 records_df[
-                    (records_df["student_name"].apply(norm_txt) == norm_txt(s_name))
-                    & (records_df["classroom"].apply(norm_txt) == norm_txt(s_class))
+                    (records_df["student_name"].apply(norm_txt) == key[0])
+                    & (records_df["classroom"].apply(norm_txt) == key[1])
                 ]
                 if not records_df.empty
                 else pd.DataFrame()
@@ -1028,7 +1059,7 @@ elif page == "بطاقات الطالبات والواتساب":
                 <div class="dossier-card">
                     <div class="dossier-title">سجل أعمال ومتميزات الطالبة: {s_name}</div>
                     <div class="dossier-meta">
-                        <span>الفصل: {s_class} • الشواهد: {cnt_val}</span>
+                        <span>الصف: {s_class} • الشواهد: {cnt_val}</span>
                         <span class="cap-badge">المجموع التراكمي: {pts_val} / {MAX_POINTS} درجة</span>
                     </div>
                 </div>
@@ -1036,64 +1067,70 @@ elif page == "بطاقات الطالبات والواتساب":
                 unsafe_allow_html=True,
             )
 
-            c_wa1, c_wa2, c_wa3 = st.columns([2.2, 1.3, 2.0])
-            with c_wa1:
-                new_wa_val = st.text_input(
-                    "الواتساب",
-                    value=s_wa,
-                    placeholder="رقم الواتساب (05xxxxxxxx)",
-                    key=f"wa_edit_{s_class}_{s_name}",
-                    label_visibility="collapsed",
-                )
-            with c_wa2:
-                if st.button("حفظ الواتساب", key=f"wa_save_{s_class}_{s_name}", use_container_width=True):
-                    update_student_whatsapp(s_name, s_class, new_wa_val)
-                    st.success("تم حفظ رقم الواتساب.")
-                    st.rerun()
-            with c_wa3:
-                st.link_button("إرسال واتساب", wa_url, use_container_width=True)
+            toggle_label = "🔼 إغلاق البطاقة" if is_open else "🔽 فتح البطاقة"
+            if st.button(toggle_label, key=f"toggle_card_{idx_c}_{card_key}", use_container_width=True):
+                st.session_state.open_cards[card_key] = not is_open
+                st.rerun()
 
-            if not s_recs.empty:
-                total_recs = len(s_recs)
-                for idx_r, (_, rec) in enumerate(s_recs.iterrows()):
-                    rec_num = total_recs - idx_r
-                    rec_pts = int(pd.to_numeric(rec.get("points", 0), errors="coerce") or 0)
-                    st.markdown(
-                        f"""
-                        <div class="rec-card">
-                            <div class="rec-head">رصد رقم ({rec_num}) - {rec['behavior']}</div>
-                            <div class="rec-sub">
-                                الدرجة الممنوحة: {rec_pts} درجات • التاريخ: {rec['date']} • الراصد: {rec['observer_name']}
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
+            if is_open:
+                c_wa1, c_wa2, c_wa3 = st.columns([2.2, 1.3, 2.0])
+                with c_wa1:
+                    new_wa_val = st.text_input(
+                        "رقم الواتساب",
+                        value=s_wa,
+                        placeholder="أدخل رقم الواتساب (05xxxxxxxx)",
+                        key=f"wa_edit_{idx_c}_{card_key}",
+                        label_visibility="collapsed",
                     )
-
-                    ev_name, ev_bytes = get_evidence_media(rec.get("evidence_file", ""))
-                    if ev_bytes:
-                        lower_n = ev_name.lower()
-                        if lower_n.endswith((".png", ".jpg", ".jpeg", ".webp")):
-                            st.image(
-                                ev_bytes,
-                                caption=f"شاهد رصد رقم ({rec_num}): {rec['behavior']}",
-                                use_container_width=True,
-                            )
-                        elif lower_n.endswith((".mp4", ".mov")):
-                            st.video(ev_bytes)
-                        elif lower_n.endswith(".pdf"):
-                            st.download_button(
-                                label=f"فتح / تحميل ملف الشاهد ({ev_name})",
-                                data=ev_bytes,
-                                file_name=ev_name,
-                                mime="application/pdf",
-                                key=f"ev_dl_{rec['record_id']}_{idx_r}",
-                                use_container_width=True,
-                            )
-
-                    if st.button("حذف هذا السجل", key=f"del_rec_{rec['record_id']}_{idx_r}"):
-                        delete_record_by_id(str(rec["record_id"]))
+                with c_wa2:
+                    if st.button("حفظ الواتساب", key=f"wa_save_{idx_c}_{card_key}", use_container_width=True):
+                        update_student_whatsapp(s_name, s_class, new_wa_val)
+                        st.success("تم حفظ رقم الواتساب.")
                         st.rerun()
+                with c_wa3:
+                    st.link_button("إرسال واتساب", wa_url, use_container_width=True)
+
+                if not s_recs.empty:
+                    total_recs = len(s_recs)
+                    for idx_r, (_, rec) in enumerate(s_recs.iterrows()):
+                        rec_num = total_recs - idx_r
+                        rec_pts = int(pd.to_numeric(rec.get("points", 0), errors="coerce") or 0)
+                        st.markdown(
+                            f"""
+                            <div class="rec-card">
+                                <div class="rec-head">رصد رقم ({rec_num}) - {rec['behavior']}</div>
+                                <div class="rec-sub">
+                                    الدرجة الممنوحة: {rec_pts} درجات • التاريخ: {rec['date']} • الراصد: {rec['observer_name']}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+
+                        ev_name, ev_bytes = get_evidence_media(rec.get("evidence_file", ""))
+                        if ev_bytes:
+                            lower_n = ev_name.lower()
+                            if lower_n.endswith((".png", ".jpg", ".jpeg", ".webp")):
+                                st.image(
+                                    ev_bytes,
+                                    caption=f"شاهد رصد رقم ({rec_num}): {rec['behavior']}",
+                                    use_container_width=True,
+                                )
+                            elif lower_n.endswith((".mp4", ".mov")):
+                                st.video(ev_bytes)
+                            elif lower_n.endswith(".pdf"):
+                                st.download_button(
+                                    label=f"فتح / تحميل ملف الشاهد ({ev_name})",
+                                    data=ev_bytes,
+                                    file_name=ev_name,
+                                    mime="application/pdf",
+                                    key=f"ev_dl_{rec['record_id']}_{idx_r}",
+                                    use_container_width=True,
+                                )
+
+                        if st.button("حذف هذا السجل", key=f"del_rec_{rec['record_id']}_{idx_r}"):
+                            delete_record_by_id(str(rec["record_id"]))
+                            st.rerun()
 
 elif page == "التقارير والنسخ الاحتياطي":
     st.markdown("### التقارير والنسخ الاحتياطي")
@@ -1122,7 +1159,7 @@ elif page == "التقارير والنسخ الاحتياطي":
                 st.rerun()
 
     st.markdown("---")
-    st.markdown("#### تصدير Excel وسجل الفصل")
+    st.markdown("#### تصدير Excel وسجل الصف")
     excel_bytes = build_summary_excel(f_students, f_records)
     st.download_button(
         label=f"تحميل ملف Excel ({selected_class})",
@@ -1134,4 +1171,4 @@ elif page == "التقارير والنسخ الاحتياطي":
     if not f_records.empty:
         st.dataframe(f_records, use_container_width=True)
     else:
-        st.info("لا توجد سجلات رصد في هذا الفصل حالياً.")
+        st.info("لا توجد سجلات رصد في هذا الصف حالياً.")
