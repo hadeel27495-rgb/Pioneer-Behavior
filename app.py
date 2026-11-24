@@ -7,6 +7,8 @@ import urllib.parse
 from datetime import date
 import pandas as pd
 import streamlit as st
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Alignment
 
 st.set_page_config(
     page_title="السلوك المتميز",
@@ -23,12 +25,6 @@ RECORDS_FILE = os.path.join(DATA_DIR, "records.csv")
 BG_CUSTOM_FILE = os.path.join(DATA_DIR, "custom_bg.png")
 
 SCHOOL_NAME = "متوسطة طويق الأولى للبنات"
-
-# خيارات الخلفية: "image" لصورة، "gradient" لتدرج لوني، "color" للون ثابت
-BG_MODE = "image"
-CUSTOM_BG_COLOR = "#f6f5ef"
-CUSTOM_BG_GRADIENT = "linear-gradient(160deg, #eef5f1 0%, #f8f6ee 55%, #f3efe2 100%)"
-APPLY_BG_ALL_PAGES = False  # اجعلها True إذا أردت ظهور صورة الخلفية في كل الصفحات
 
 HERO_CANDIDATES = [
     BG_CUSTOM_FILE,
@@ -507,6 +503,21 @@ def restore_backup_json(uploaded_json_file):
             f.write(raw_bytes)
 
 
+def format_excel_sheet(ws, df_out: pd.DataFrame):
+    ws.views.sheetView[0].rightToLeft = True
+    for col_idx, col_name in enumerate(df_out.columns, start=1):
+        col_letter = get_column_letter(col_idx)
+        max_len = len(str(col_name))
+        if not df_out.empty:
+            for val in df_out[col_name].astype(str):
+                if len(val) > max_len:
+                    max_len = len(val)
+        ws.column_dimensions[col_letter].width = min(max(max_len + 6, 16), 55)
+    for row in ws.iter_rows():
+        for cell in row:
+            cell.alignment = Alignment(horizontal="right", vertical="center", wrap_text=True)
+
+
 def build_summary_excel(students_df: pd.DataFrame, records_df: pd.DataFrame) -> bytes:
     pts_map = {}
     cnt_map = {}
@@ -539,14 +550,26 @@ def build_summary_excel(students_df: pd.DataFrame, records_df: pd.DataFrame) -> 
                     "رقم الواتساب": s_wa,
                     "عدد الشواهد": cnt_map.get(key, 0),
                     "مجموع الدرجات": pts_map.get(key, 0),
-                    "الحد الأقصى": MAX_POINTS,
+                    "الحد الأقصى للدرجة": MAX_POINTS,
                 }
             )
 
-    summary_df = pd.DataFrame(rows)
+    summary_df = pd.DataFrame(
+        rows,
+        columns=[
+            "الاسم",
+            "الصف",
+            "رقم الواتساب",
+            "عدد الشواهد",
+            "مجموع الدرجات",
+            "الحد الأقصى للدرجة",
+        ],
+    )
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         summary_df.to_excel(writer, index=False, sheet_name="ملخص السلوك المتميز")
+        format_excel_sheet(writer.sheets["ملخص السلوك المتميز"], summary_df)
+
         if not records_df.empty:
             records_export = records_df.rename(
                 columns={
@@ -562,6 +585,7 @@ def build_summary_excel(students_df: pd.DataFrame, records_df: pd.DataFrame) -> 
                 }
             )
             records_export.to_excel(writer, index=False, sheet_name="سجل الشواهد التفصيلي")
+            format_excel_sheet(writer.sheets["سجل الشواهد التفصيلي"], records_export)
     return output.getvalue()
 
 
@@ -574,11 +598,10 @@ if "menu_open" not in st.session_state:
     st.session_state.menu_open = False
 
 is_home = st.session_state.nav_page == "الواجهة الرئيسية"
-use_bg_here = is_home or APPLY_BG_ALL_PAGES
-hero_path = find_hero_image() if use_bg_here else ""
-hero_uri = image_to_data_uri(hero_path) if (use_bg_here and BG_MODE == "image") else ""
+hero_path = find_hero_image() if is_home else ""
+hero_uri = image_to_data_uri(hero_path) if is_home else ""
 
-if use_bg_here and BG_MODE == "image" and hero_uri:
+if is_home and hero_uri:
     bg_rule = f"""
     .stApp {{
         background-image: url("{hero_uri}");
@@ -589,22 +612,15 @@ if use_bg_here and BG_MODE == "image" and hero_uri:
         color: #132620;
     }}
     """
-elif BG_MODE == "gradient":
-    bg_rule = f"""
-    .stApp {{
-        background: {CUSTOM_BG_GRADIENT};
-        color: #132620;
-    }}
-    """
 else:
-    bg_rule = f"""
-    .stApp {{
-        background: {CUSTOM_BG_COLOR};
+    bg_rule = """
+    .stApp {
+        background: #f6f5ef;
         color: #132620;
-    }}
+    }
     """
 
-card_bg = "rgba(255, 255, 255, 0.90)" if (use_bg_here and BG_MODE == "image" and hero_uri) else "#ffffff"
+card_bg = "rgba(255, 255, 255, 0.90)" if (is_home and hero_uri) else "#ffffff"
 
 st.markdown(
     f"""
@@ -649,34 +665,20 @@ st.markdown(
         padding: 12px 16px;
         margin-bottom: 10px;
         box-shadow: 0 4px 14px rgba(15, 76, 58, 0.1);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
     }}
 
     .brand-name {{
-        font-size: 1.15rem;
+        font-size: 1.18rem;
         font-weight: 800;
         color: #0f4c3a;
         margin: 0;
     }}
 
     .brand-desc {{
-        font-size: 0.82rem;
+        font-size: 0.85rem;
         color: #465850;
         margin: 2px 0 0 0;
-    }}
-
-    .cap-badge {{
-        background: #fdf6e2;
-        color: #8a640b;
-        border: 1px solid #dfc067;
-        border-radius: 999px;
-        padding: 4px 12px;
-        font-size: 0.82rem;
-        font-weight: 800;
-        white-space: nowrap;
+        font-weight: 600;
     }}
 
     .kpi-grid {{
@@ -771,6 +773,8 @@ st.markdown(
         font-weight: 800 !important;
         color: #0f4c3a !important;
         font-size: 1rem !important;
+        white-space: normal !important;
+        line-height: 1.5 !important;
     }}
 </style>
 """,
@@ -788,11 +792,8 @@ nav_options = [
 st.markdown(
     f"""
     <div class="brand-card">
-        <div>
-            <p class="brand-name">السلوك المتميز</p>
-            <p class="brand-desc">{st.session_state.nav_page} • {SCHOOL_NAME}</p>
-        </div>
-        <span class="cap-badge">الحد الأقصى: {MAX_POINTS}</span>
+        <p class="brand-name">السلوك المتميز</p>
+        <p class="brand-desc">{SCHOOL_NAME}</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -947,7 +948,7 @@ elif page == "رصد السلوك والشواهد":
             f"""
             <div class="behavior-preview">
                 السلوك المحدد: <span style="color:#0f4c3a;">{chosen_behavior}</span>
-                • الدرجة المقررة: <span class="cap-badge">{auto_pts} درجات</span>
+                • الدرجة المقررة: <strong>{auto_pts} درجات</strong> (الحد الأقصى للطالبة: {MAX_POINTS})
             </div>
             """,
             unsafe_allow_html=True,
@@ -1072,10 +1073,11 @@ elif page == "بطاقات الطالبات والواتساب":
             wa_url = build_whatsapp_link(s_wa, s_name, s_class, latest_behavior, pts_val)
 
             exp_label = (
-                f"سجل أعمال ومتميزات الطالبة: {s_name}  |  الصف: {s_class}  |  "
-                f"{pts_val} / {MAX_POINTS} درجة ({cnt_val} شاهد)"
+                f"الطالبة: {s_name} — الصف: {s_class} — "
+                f"الدرجة: {pts_val} / {MAX_POINTS} ({cnt_val} شاهد)"
             )
             with st.expander(exp_label, expanded=False):
+                st.markdown(f"**الاسم الكامل:** {s_name}")
                 c_wa1, c_wa2, c_wa3 = st.columns([2.2, 1.3, 2.0])
                 with c_wa1:
                     new_wa_val = st.text_input(
@@ -1147,7 +1149,7 @@ elif page == "بطاقات الطالبات والواتساب":
 elif page == "التقارير والنسخ الاحتياطي":
     st.markdown("### التقارير والنسخ الاحتياطي")
 
-    st.markdown("#### تخصيص صورة الخلفية")
+    st.markdown("#### تغيير صورة الخلفية")
     bg_upload = st.file_uploader(
         "اختر صورة خلفية جديدة (PNG / JPG / WEBP):",
         type=["png", "jpg", "jpeg", "webp"],
