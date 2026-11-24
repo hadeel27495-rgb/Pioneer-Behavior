@@ -20,10 +20,18 @@ DATA_DIR = "data_store"
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
 STUDENTS_FILE = os.path.join(DATA_DIR, "students.csv")
 RECORDS_FILE = os.path.join(DATA_DIR, "records.csv")
+BG_CUSTOM_FILE = os.path.join(DATA_DIR, "custom_bg.png")
 
 SCHOOL_NAME = "متوسطة طويق الأولى للبنات"
 
+# خيارات الخلفية: "image" لصورة، "gradient" لتدرج لوني، "color" للون ثابت
+BG_MODE = "image"
+CUSTOM_BG_COLOR = "#f6f5ef"
+CUSTOM_BG_GRADIENT = "linear-gradient(160deg, #eef5f1 0%, #f8f6ee 55%, #f3efe2 100%)"
+APPLY_BG_ALL_PAGES = False  # اجعلها True إذا أردت ظهور صورة الخلفية في كل الصفحات
+
 HERO_CANDIDATES = [
+    BG_CUSTOM_FILE,
     "assets/hero_edu.png",
     "assets/hero_edu.jpg",
     "assets/hero_edu.jpeg",
@@ -566,10 +574,11 @@ if "menu_open" not in st.session_state:
     st.session_state.menu_open = False
 
 is_home = st.session_state.nav_page == "الواجهة الرئيسية"
-hero_path = find_hero_image()
-hero_uri = image_to_data_uri(hero_path) if is_home else ""
+use_bg_here = is_home or APPLY_BG_ALL_PAGES
+hero_path = find_hero_image() if use_bg_here else ""
+hero_uri = image_to_data_uri(hero_path) if (use_bg_here and BG_MODE == "image") else ""
 
-if is_home and hero_uri:
+if use_bg_here and BG_MODE == "image" and hero_uri:
     bg_rule = f"""
     .stApp {{
         background-image: url("{hero_uri}");
@@ -580,15 +589,22 @@ if is_home and hero_uri:
         color: #132620;
     }}
     """
-else:
-    bg_rule = """
-    .stApp {
-        background: #f6f5ef;
+elif BG_MODE == "gradient":
+    bg_rule = f"""
+    .stApp {{
+        background: {CUSTOM_BG_GRADIENT};
         color: #132620;
-    }
+    }}
+    """
+else:
+    bg_rule = f"""
+    .stApp {{
+        background: {CUSTOM_BG_COLOR};
+        color: #132620;
+    }}
     """
 
-card_bg = "rgba(255, 255, 255, 0.90)" if (is_home and hero_uri) else "#ffffff"
+card_bg = "rgba(255, 255, 255, 0.90)" if (use_bg_here and BG_MODE == "image" and hero_uri) else "#ffffff"
 
 st.markdown(
     f"""
@@ -1131,6 +1147,30 @@ elif page == "بطاقات الطالبات والواتساب":
 elif page == "التقارير والنسخ الاحتياطي":
     st.markdown("### التقارير والنسخ الاحتياطي")
 
+    st.markdown("#### تخصيص صورة الخلفية")
+    bg_upload = st.file_uploader(
+        "اختر صورة خلفية جديدة (PNG / JPG / WEBP):",
+        type=["png", "jpg", "jpeg", "webp"],
+        key="bg_uploader_widget",
+    )
+    b_bg1, b_bg2 = st.columns(2)
+    with b_bg1:
+        if bg_upload is not None and st.button("تطبيق صورة الخلفية", use_container_width=True):
+            ensure_storage()
+            with open(BG_CUSTOM_FILE, "wb") as f_bg:
+                f_bg.write(bg_upload.getvalue())
+            st.success("تم تحديث صورة الخلفية بنجاح.")
+            st.rerun()
+    with b_bg2:
+        if os.path.exists(BG_CUSTOM_FILE) and st.button("استعادة الخلفية الافتراضية", use_container_width=True):
+            try:
+                os.remove(BG_CUSTOM_FILE)
+            except Exception:
+                pass
+            st.success("تمت استعادة الخلفية الافتراضية.")
+            st.rerun()
+
+    st.markdown("---")
     b_col1, b_col2 = st.columns(2)
     with b_col1:
         st.markdown("#### حفظ نسخة احتياطية كاملة")
