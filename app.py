@@ -28,6 +28,7 @@ SCHOOL_NAME = "متوسطة طويق الأولى للبنات"
 
 HERO_CANDIDATES = [
     BG_CUSTOM_FILE,
+    "IMG_3852.jpeg",
     "assets/hero_edu.png",
     "assets/hero_edu.jpg",
     "assets/hero_edu.jpeg",
