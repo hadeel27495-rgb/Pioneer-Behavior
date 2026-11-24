@@ -635,6 +635,15 @@ st.markdown(
 
     {bg_rule}
 
+    @keyframes titleFloat {{
+        0%, 100% {{
+            transform: translateY(0px) scale(1);
+        }}
+        50% {{
+            transform: translateY(-3px) scale(1.015);
+        }}
+    }}
+
     .stButton > button, .stDownloadButton > button, .stLinkButton > a {{
         background-color: #0f4c3a !important;
         color: #ffffff !important;
@@ -662,23 +671,30 @@ st.markdown(
         border: 1px solid rgba(197, 155, 39, 0.45);
         border-right: 5px solid #0f4c3a;
         border-radius: 14px;
-        padding: 12px 16px;
+        padding: 14px 16px;
         margin-bottom: 10px;
         box-shadow: 0 4px 14px rgba(15, 76, 58, 0.1);
+        text-align: center;
+    }}
+
+    .brand-animated {{
+        animation: titleFloat 3.2s ease-in-out infinite;
     }}
 
     .brand-name {{
-        font-size: 1.18rem;
+        font-size: 1.25rem;
         font-weight: 800;
         color: #0f4c3a;
         margin: 0;
+        text-align: center;
     }}
 
     .brand-desc {{
-        font-size: 0.85rem;
+        font-size: 0.88rem;
         color: #465850;
-        margin: 2px 0 0 0;
-        font-weight: 600;
+        margin: 4px 0 0 0;
+        font-weight: 700;
+        text-align: center;
     }}
 
     .kpi-grid {{
@@ -792,8 +808,10 @@ nav_options = [
 st.markdown(
     f"""
     <div class="brand-card">
-        <p class="brand-name">السلوك المتميز</p>
-        <p class="brand-desc">{SCHOOL_NAME}</p>
+        <div class="brand-animated">
+            <p class="brand-name">السلوك المتميز</p>
+            <p class="brand-desc">{SCHOOL_NAME}</p>
+        </div>
     </div>
     """,
     unsafe_allow_html=True,
