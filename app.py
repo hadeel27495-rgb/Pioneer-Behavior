@@ -451,6 +451,95 @@ def add_behavior_record(
     return applied, new_total
 
 
+def add_bulk_behavior_records(
+    student_entries: list,
+    behavior: str,
+    points: int,
+    rec_date: str,
+    observer_name: str,
+    evidence_text: str,
+    evidence_path: str,
+):
+    ensure_storage()
+    raw_df = (
+        pd.read_csv(RECORDS_FILE, dtype=str).fillna("")
+        if os.path.exists(RECORDS_FILE)
+        else pd.DataFrame(columns=RECORD_COLS)
+    )
+    for col in RECORD_COLS:
+        if col not in raw_df.columns:
+            raw_df[col] = ""
+
+    next_id = 1
+    if not raw_df.empty and "record_id" in raw_df.columns:
+        nums = pd.to_numeric(raw_df["record_id"], errors="coerce").dropna()
+        if not nums.empty:
+            next_id = int(nums.max()) + 1
+
+    running_pts = {}
+    if not raw_df.empty:
+        tmp = raw_df.copy()
+        tmp["pts_num"] = pd.to_numeric(tmp["points"], errors="coerce").fillna(0).astype(int)
+        for _, r in tmp.iterrows():
+            k = (norm_txt(r["student_name"]), norm_txt(r["classroom"]))
+            running_pts[k] = running_pts.get(k, 0) + int(r["pts_num"])
+
+    new_rows = []
+    results = []
+    for entry in student_entries:
+        s_name = display_txt(entry["name"])
+        s_class = display_txt(entry["classroom"])
+        s_wa = str(entry.get("whatsapp", "") or "").strip()
+        k = (norm_txt(s_name), norm_txt(s_class))
+
+        existing_pts = running_pts.get(k, 0)
+        remaining = max(0, MAX_POINTS - existing_pts)
+        applied = min(int(points), remaining)
+        new_total = min(MAX_POINTS, existing_pts + applied)
+        running_pts[k] = new_total
+
+        if s_wa:
+            update_student_whatsapp(s_name, s_class, s_wa)
+
+        new_rows.append(
+            {
+                "record_id": str(next_id),
+                "student_name": s_name,
+                "classroom": s_class,
+                "whatsapp": s_wa,
+                "behavior": display_txt(behavior),
+                "points": int(applied),
+                "date": str(rec_date),
+                "observer_name": display_txt(observer_name),
+                "evidence_text": str(evidence_text or "").strip(),
+                "evidence_file": evidence_path.strip(),
+            }
+        )
+        next_id += 1
+        results.append((s_name, s_class, applied, new_total))
+
+    if new_rows:
+        combined = pd.concat([raw_df, pd.DataFrame(new_rows)], ignore_index=True)
+        save_records_df(combined)
+    return results
+
+
+def save_uploaded_evidence(uploaded_file, rec_date, prefix_label="shared"):
+    if uploaded_file is None:
+        return ""
+    file_bytes = uploaded_file.getvalue()
+    clean_prefix = norm_txt(prefix_label).replace(" ", "_") or "shared"
+    safe_filename = f"{clean_prefix}_{rec_date}_{uploaded_file.name}".replace(" ", "_")
+    st.session_state.mem_uploads[safe_filename] = file_bytes
+    saved_rel_path = os.path.join(UPLOAD_DIR, safe_filename)
+    try:
+        with open(saved_rel_path, "wb") as f_out:
+            f_out.write(file_bytes)
+    except Exception:
+        pass
+    return saved_rel_path
+
+
 def delete_record_by_id(record_id: str):
     ensure_storage()
     raw_df = pd.read_csv(RECORDS_FILE, dtype=str).fillna("")
@@ -597,6 +686,9 @@ if "nav_page" not in st.session_state:
 
 if "menu_open" not in st.session_state:
     st.session_state.menu_open = False
+
+if "select_all_bulk" not in st.session_state:
+    st.session_state.select_all_bulk = False
 
 is_home = st.session_state.nav_page == "الواجهة الرئيسية"
 hero_path = find_hero_image() if is_home else ""
@@ -840,7 +932,7 @@ if st.button("☰ النوافذ", key="hamburger_btn"):
 if st.session_state.menu_open:
     for idx, opt in enumerate(nav_options):
         label_txt = f"✓ {opt}" if st.session_state.nav_page == opt else opt
-        if st.button(label_txt, key=f"nav_btn_{idx}", use_container_width=True):
+        if st.button(label_txt, key=f"nav_btn_{idx}", width="stretch"):
             st.session_state.nav_page = opt
             st.session_state.menu_open = False
             st.rerun()
@@ -928,11 +1020,11 @@ if page == "الواجهة الرئيسية":
 
     q1, q2 = st.columns(2)
     with q1:
-        if st.button("⭐ رصد سلوك وشاهد", use_container_width=True):
+        if st.button("⭐ رصد سلوك وشاهد", width="stretch"):
             st.session_state.nav_page = "رصد السلوك والشواهد"
             st.rerun()
     with q2:
-        if st.button("🪪 بطاقات الطالبات والواتساب", use_container_width=True):
+        if st.button("🪪 بطاقات الطالبات والواتساب", width="stretch"):
             st.session_state.nav_page = "بطاقات الطالبات والواتساب"
             st.rerun()
 
@@ -947,7 +1039,7 @@ elif page == "استيراد الطالبات":
             xls = pd.ExcelFile(uploaded_excel)
             sheet_name = st.selectbox("اختر الورقة:", xls.sheet_names)
             preview_df = pd.read_excel(xls, sheet_name=sheet_name)
-            st.dataframe(preview_df.head(10), use_container_width=True)
+            st.dataframe(preview_df.head(10), width="stretch")
             if st.button("حفظ قائمة الطالبات"):
                 added = upsert_students_from_df(preview_df)
                 st.success(f"تمت إضافة {added} طالبة جديدة بنجاح.")
@@ -989,63 +1081,161 @@ elif page == "رصد السلوك والشواهد":
             unsafe_allow_html=True,
         )
 
-        class_students_list = sorted(f_students["name"].apply(display_txt).unique().tolist())
-        with st.form("record_behavior_form", clear_on_submit=True):
-            c1, c2 = st.columns(2)
-            with c1:
-                chosen_student = st.selectbox("الطالبة:", class_students_list)
-                student_row = f_students[
-                    f_students["name"].apply(norm_txt) == norm_txt(chosen_student)
-                ].iloc[0]
-                default_wa = str(student_row.get("whatsapp", "") or "")
-                wa_input = st.text_input("رقم الواتساب:", value=default_wa)
-                observer_input = st.text_input("اسم الراصد:")
-            with c2:
-                rec_date_input = st.date_input("التاريخ:", value=date.today())
-                evidence_text_input = st.text_area(
-                    "إضافة نص شاهد (اختياري):",
-                    placeholder="اكتب وصف الشاهد أو المبادرة أو الملاحظة هنا...",
-                    height=95,
-                )
-                evidence_file = st.file_uploader(
-                    "إرفاق ملف شاهد (صورة / فيديو / PDF):",
-                    type=["png", "jpg", "jpeg", "webp", "mp4", "mov", "pdf"],
-                )
+        record_mode = st.radio(
+            "طريقة الرصد:",
+            ["رصد جماعي لشاهد واحد (عدة طالبات / أكثر من ٣٠)", "رصد لطالبة واحدة"],
+            horizontal=True,
+        )
 
-            if st.form_submit_button("اعتماد وحفظ الشاهد"):
-                if not observer_input.strip():
-                    st.error("يرجى إدخال اسم الراصد.")
-                else:
-                    saved_rel_path = ""
-                    if evidence_file is not None:
-                        file_bytes = evidence_file.getvalue()
-                        safe_filename = (
-                            f"{norm_txt(chosen_student)}_{rec_date_input}_{evidence_file.name}"
-                            .replace(" ", "_")
-                        )
-                        st.session_state.mem_uploads[safe_filename] = file_bytes
-                        saved_rel_path = os.path.join(UPLOAD_DIR, safe_filename)
-                        try:
-                            with open(saved_rel_path, "wb") as f_out:
-                                f_out.write(file_bytes)
-                        except Exception:
-                            pass
+        if record_mode.startswith("رصد جماعي"):
+            dedup_scope = f_students.drop_duplicates(subset=["name", "classroom"]).copy()
+            label_to_entry = {}
+            ordered_labels = []
+            for _, row in dedup_scope.iterrows():
+                sn = display_txt(row["name"])
+                sc = display_txt(row["classroom"])
+                sw = str(row.get("whatsapp", "") or "").strip()
+                lbl = f"{sn} ({sc})" if selected_class == "جميع الصفوف" else sn
+                if lbl not in label_to_entry:
+                    label_to_entry[lbl] = {"name": sn, "classroom": sc, "whatsapp": sw}
+                    ordered_labels.append(lbl)
 
-                    applied, new_total = add_behavior_record(
-                        student_name=chosen_student,
-                        classroom=display_txt(student_row["classroom"]),
-                        whatsapp=wa_input,
-                        behavior=chosen_behavior,
-                        points=auto_pts,
-                        rec_date=str(rec_date_input),
-                        observer_name=observer_input,
-                        evidence_text=evidence_text_input,
-                        evidence_path=saved_rel_path,
-                    )
-                    st.success(
-                        f"تم اعتماد ({applied}) درجة للسلوك ({chosen_behavior}). الرصيد الحالي للطالبة: ({new_total} / {MAX_POINTS})."
-                    )
+            st.caption(
+                f"المتاح في النطاق الحالي: {len(ordered_labels)} طالبة — يمكنك اختيار أي عدد أو تحديد الجميع."
+            )
+
+            col_sel1, col_sel2 = st.columns(2)
+            with col_sel1:
+                if st.button("تحديد جميع الطالبات في النطاق", key="btn_select_all_bulk", width="stretch"):
+                    st.session_state.select_all_bulk = True
+                    st.session_state["bulk_students_multiselect"] = ordered_labels
                     st.rerun()
+            with col_sel2:
+                if st.button("إلغاء التحديد", key="btn_clear_all_bulk", width="stretch"):
+                    st.session_state.select_all_bulk = False
+                    st.session_state["bulk_students_multiselect"] = []
+                    st.rerun()
+
+            if "bulk_students_multiselect" not in st.session_state:
+                st.session_state["bulk_students_multiselect"] = (
+                    ordered_labels if st.session_state.select_all_bulk else []
+                )
+
+            selected_bulk_labels = st.multiselect(
+                "اختر الطالبات المشمولات بهذا الشاهد:",
+                options=ordered_labels,
+                key="bulk_students_multiselect",
+                placeholder="اختر طالبة أو أكثر (مثال: ٣٠ طالبة أو كامل الصف)...",
+            )
+
+            with st.form("record_bulk_behavior_form", clear_on_submit=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    bulk_observer = st.text_input("اسم الراصد:")
+                    bulk_date = st.date_input("التاريخ:", value=date.today())
+                with c2:
+                    bulk_evidence_text = st.text_area(
+                        "نص الشاهد المشترك (اختياري):",
+                        placeholder="مثال: مشاركة الطالبات في برنامج / فعالية / انضباط جماعي...",
+                        height=95,
+                    )
+                    bulk_evidence_file = st.file_uploader(
+                        "إرفاق صورة أو ملف الشاهد المشترك مرة واحدة:",
+                        type=["png", "jpg", "jpeg", "webp", "mp4", "mov", "pdf"],
+                    )
+
+                if st.form_submit_button(
+                    f"اعتماد الشاهد للمحددين ({len(selected_bulk_labels)} طالبة)"
+                ):
+                    if not selected_bulk_labels:
+                        st.error("يرجى اختيار طالبة واحدة على الأقل.")
+                    elif not bulk_observer.strip():
+                        st.error("يرجى إدخال اسم الراصد.")
+                    else:
+                        chosen_entries = [
+                            label_to_entry[lbl] for lbl in selected_bulk_labels if lbl in label_to_entry
+                        ]
+                        saved_shared_path = save_uploaded_evidence(
+                            bulk_evidence_file,
+                            bulk_date,
+                            prefix_label=f"جماعي_{selected_class}",
+                        )
+                        bulk_results = add_bulk_behavior_records(
+                            student_entries=chosen_entries,
+                            behavior=chosen_behavior,
+                            points=auto_pts,
+                            rec_date=str(bulk_date),
+                            observer_name=bulk_observer,
+                            evidence_text=bulk_evidence_text,
+                            evidence_path=saved_shared_path,
+                        )
+                        st.session_state.select_all_bulk = False
+                        st.session_state["bulk_students_multiselect"] = []
+                        st.success(
+                            f"تم اعتماد الشاهد والسلوك ({chosen_behavior}) لعدد ({len(bulk_results)}) طالبة بنجاح."
+                        )
+                        with st.expander("عرض تفاصيل الدرجات المضافة لكل طالبة", expanded=True):
+                            res_df = pd.DataFrame(
+                                [
+                                    {
+                                        "الطالبة": r_name,
+                                        "الصف": r_class,
+                                        "الدرجة المضافة": r_app,
+                                        "الرصيد الحالي": f"{r_tot} / {MAX_POINTS}",
+                                    }
+                                    for r_name, r_class, r_app, r_tot in bulk_results
+                                ]
+                            )
+                            st.dataframe(res_df, width="stretch")
+
+        else:
+            class_students_list = sorted(f_students["name"].apply(display_txt).unique().tolist())
+            with st.form("record_behavior_form", clear_on_submit=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    chosen_student = st.selectbox("الطالبة:", class_students_list)
+                    student_row = f_students[
+                        f_students["name"].apply(norm_txt) == norm_txt(chosen_student)
+                    ].iloc[0]
+                    default_wa = str(student_row.get("whatsapp", "") or "")
+                    wa_input = st.text_input("رقم الواتساب:", value=default_wa)
+                    observer_input = st.text_input("اسم الراصد:")
+                with c2:
+                    rec_date_input = st.date_input("التاريخ:", value=date.today())
+                    evidence_text_input = st.text_area(
+                        "إضافة نص شاهد (اختياري):",
+                        placeholder="اكتب وصف الشاهد أو المبادرة أو الملاحظة هنا...",
+                        height=95,
+                    )
+                    evidence_file = st.file_uploader(
+                        "إرفاق ملف شاهد (صورة / فيديو / PDF):",
+                        type=["png", "jpg", "jpeg", "webp", "mp4", "mov", "pdf"],
+                    )
+
+                if st.form_submit_button("اعتماد وحفظ الشاهد"):
+                    if not observer_input.strip():
+                        st.error("يرجى إدخال اسم الراصد.")
+                    else:
+                        saved_rel_path = save_uploaded_evidence(
+                            evidence_file,
+                            rec_date_input,
+                            prefix_label=chosen_student,
+                        )
+                        applied, new_total = add_behavior_record(
+                            student_name=chosen_student,
+                            classroom=display_txt(student_row["classroom"]),
+                            whatsapp=wa_input,
+                            behavior=chosen_behavior,
+                            points=auto_pts,
+                            rec_date=str(rec_date_input),
+                            observer_name=observer_input,
+                            evidence_text=evidence_text_input,
+                            evidence_path=saved_rel_path,
+                        )
+                        st.success(
+                            f"تم اعتماد ({applied}) درجة للسلوك ({chosen_behavior}). الرصيد الحالي للطالبة: ({new_total} / {MAX_POINTS})."
+                        )
+                        st.rerun()
 
 elif page == "بطاقات الطالبات والواتساب":
     st.markdown("### بطاقات الطالبات والواتساب والشواهد")
@@ -1123,12 +1313,12 @@ elif page == "بطاقات الطالبات والواتساب":
                         label_visibility="collapsed",
                     )
                 with c_wa2:
-                    if st.button("حفظ الواتساب", key=f"wa_save_{idx_c}_{card_key}", use_container_width=True):
+                    if st.button("حفظ الواتساب", key=f"wa_save_{idx_c}_{card_key}", width="stretch"):
                         update_student_whatsapp(s_name, s_class, new_wa_val)
                         st.success("تم حفظ رقم الواتساب.")
                         st.rerun()
                 with c_wa3:
-                    st.link_button("إرسال واتساب", wa_url, use_container_width=True)
+                    st.link_button("إرسال واتساب", wa_url, width="stretch")
 
                 if not s_recs.empty:
                     total_recs = len(s_recs)
@@ -1161,7 +1351,7 @@ elif page == "بطاقات الطالبات والواتساب":
                                 st.image(
                                     ev_bytes,
                                     caption=f"شاهد رصد رقم ({rec_num}): {rec['behavior']}",
-                                    use_container_width=True,
+                                    width="stretch",
                                 )
                             elif lower_n.endswith((".mp4", ".mov")):
                                 st.video(ev_bytes)
@@ -1172,7 +1362,7 @@ elif page == "بطاقات الطالبات والواتساب":
                                     file_name=ev_name,
                                     mime="application/pdf",
                                     key=f"ev_dl_{rec['record_id']}_{idx_r}",
-                                    use_container_width=True,
+                                    width="stretch",
                                 )
 
                         if st.button("حذف هذا السجل", key=f"del_rec_{rec['record_id']}_{idx_r}"):
@@ -1192,14 +1382,14 @@ elif page == "التقارير والنسخ الاحتياطي":
     )
     b_bg1, b_bg2 = st.columns(2)
     with b_bg1:
-        if bg_upload is not None and st.button("تطبيق صورة الخلفية", use_container_width=True):
+        if bg_upload is not None and st.button("تطبيق صورة الخلفية", width="stretch"):
             ensure_storage()
             with open(BG_CUSTOM_FILE, "wb") as f_bg:
                 f_bg.write(bg_upload.getvalue())
             st.success("تم تحديث صورة الخلفية بنجاح.")
             st.rerun()
     with b_bg2:
-        if os.path.exists(BG_CUSTOM_FILE) and st.button("استعادة الخلفية الافتراضية", use_container_width=True):
+        if os.path.exists(BG_CUSTOM_FILE) and st.button("استعادة الخلفية الافتراضية", width="stretch"):
             try:
                 os.remove(BG_CUSTOM_FILE)
             except Exception:
@@ -1217,7 +1407,7 @@ elif page == "التقارير والنسخ الاحتياطي":
             data=backup_bytes,
             file_name=f"نسخة_احتياطية_السلوك_{date.today()}.json",
             mime="application/json",
-            use_container_width=True,
+            width="stretch",
         )
 
     with b_col2:
@@ -1226,7 +1416,7 @@ elif page == "التقارير والنسخ الاحتياطي":
             "ارفع ملف النسخة الاحتياطية (.json):", type=["json"]
         )
         if rest_file is not None:
-            if st.button("استعادة البيانات الآن", use_container_width=True):
+            if st.button("استعادة البيانات الآن", width="stretch"):
                 restore_backup_json(rest_file)
                 st.success("تمت استعادة البيانات بنجاح!")
                 st.rerun()
@@ -1239,10 +1429,10 @@ elif page == "التقارير والنسخ الاحتياطي":
         data=excel_bytes,
         file_name=f"السلوك_المتميز_{selected_class}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
+        width="stretch",
     )
     if not f_records.empty:
-        st.dataframe(f_records, use_container_width=True)
+        st.dataframe(f_records, width="stretch")
     else:
         st.info("لا توجد سجلات رصد في هذا الصف حالياً.")
 
