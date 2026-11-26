@@ -690,6 +690,9 @@ if "menu_open" not in st.session_state:
 if "select_all_bulk" not in st.session_state:
     st.session_state.select_all_bulk = False
 
+if "bulk_multiselect_nonce" not in st.session_state:
+    st.session_state.bulk_multiselect_nonce = 0
+
 is_home = st.session_state.nav_page == "الواجهة الرئيسية"
 hero_path = find_hero_image() if is_home else ""
 hero_uri = image_to_data_uri(hero_path) if is_home else ""
@@ -1104,27 +1107,26 @@ elif page == "رصد السلوك والشواهد":
                 f"المتاح في النطاق الحالي: {len(ordered_labels)} طالبة — يمكنك اختيار أي عدد أو تحديد الجميع."
             )
 
+            ms_key = f"bulk_students_multiselect_{st.session_state.bulk_multiselect_nonce}"
+
             col_sel1, col_sel2 = st.columns(2)
             with col_sel1:
                 if st.button("تحديد جميع الطالبات في النطاق", key="btn_select_all_bulk", width="stretch"):
                     st.session_state.select_all_bulk = True
-                    st.session_state["bulk_students_multiselect"] = ordered_labels
+                    st.session_state.bulk_multiselect_nonce += 1
                     st.rerun()
             with col_sel2:
                 if st.button("إلغاء التحديد", key="btn_clear_all_bulk", width="stretch"):
                     st.session_state.select_all_bulk = False
-                    st.session_state["bulk_students_multiselect"] = []
+                    st.session_state.bulk_multiselect_nonce += 1
                     st.rerun()
 
-            if "bulk_students_multiselect" not in st.session_state:
-                st.session_state["bulk_students_multiselect"] = (
-                    ordered_labels if st.session_state.select_all_bulk else []
-                )
-
+            default_selected = ordered_labels if st.session_state.select_all_bulk else []
             selected_bulk_labels = st.multiselect(
                 "اختر الطالبات المشمولات بهذا الشاهد:",
                 options=ordered_labels,
-                key="bulk_students_multiselect",
+                default=default_selected,
+                key=ms_key,
                 placeholder="اختر طالبة أو أكثر (مثال: ٣٠ طالبة أو كامل الصف)...",
             )
 
@@ -1170,7 +1172,7 @@ elif page == "رصد السلوك والشواهد":
                             evidence_path=saved_shared_path,
                         )
                         st.session_state.select_all_bulk = False
-                        st.session_state["bulk_students_multiselect"] = []
+                        st.session_state.bulk_multiselect_nonce += 1
                         st.success(
                             f"تم اعتماد الشاهد والسلوك ({chosen_behavior}) لعدد ({len(bulk_results)}) طالبة بنجاح."
                         )
